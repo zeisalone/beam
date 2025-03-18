@@ -236,7 +236,7 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
   defp tailwind_color(_), do: "text-gray-500"
 
   defp shape_svg(shape, color) do
-    file_path = "priv/static/images/#{shape}.svg"
+    file_path = Path.join(:code.priv_dir(:beam), "static/images/#{shape}.svg")
 
     case File.read(file_path) do
       {:ok, svg_content} ->

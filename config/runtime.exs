@@ -65,7 +65,9 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
-  # ## SSL Support
+    config :swoosh, :api_client, false
+    config :beam, Beam.Mailer, adapter: Swoosh.Adapters.Test
+
   #
   # To get SSL working, you will need to add the `https` key
   # to your endpoint configuration:

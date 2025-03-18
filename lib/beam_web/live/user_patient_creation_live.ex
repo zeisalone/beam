@@ -76,7 +76,6 @@ defmodule BeamWeb.UserPatientCreationLive do
 
         case Accounts.verify_user_type(user.id, user_params["therapist_id"]) do
           {:ok, :ok} ->
-            # Adiciona o redirecionamento aqui
             {:noreply, push_navigate(socket, to: ~p"/dashboard")}
 
           {:error, reason} ->

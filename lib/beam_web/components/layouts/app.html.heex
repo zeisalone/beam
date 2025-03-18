@@ -1,6 +1,9 @@
-<header class="px-4 sm:px-6 lg:px-8">
-  <div class="flex items-center justify-end border-b border-zinc-100 py-3 text-sm">
-    <ul class="relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
+<header class="px-4 sm:px-6 lg:px-8 border-b border-zinc-100 py-3 text-sm">
+  <div class="flex items-center justify-between">   
+    <div>
+      <img src="/images/BEAM2.png" alt="BEAM Logo" class="h-10 w-auto">
+    </div>
+    <ul class="relative z-10 flex items-center gap-4">
       <%= if @current_user do %>
         <li class="text-[0.8125rem] font-bold leading-6 text-zinc-900">
           {@current_user.name}
@@ -65,8 +68,10 @@
         </li>
       <% end %>
     </ul>
+
   </div>
 </header>
+
 <main class="px-4 py-2">
   <div class="mx-auto max-w-2xl">
     <.flash_group flash={@flash} />
