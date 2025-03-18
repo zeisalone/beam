@@ -1,5 +1,7 @@
 # Beam
 
+BEAM is a web application designed for attention training. It's being developed by José Barbosa, as part of his Master's Thesis in Software Engineering at Universidade do Minho.
+
 To start your Phoenix server:
 
   * Run `mix setup` to install and setup dependencies
