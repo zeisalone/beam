@@ -2,41 +2,66 @@ defmodule BeamWeb.PatientProfileLive do
   use BeamWeb, :live_view
   alias Beam.Accounts
 
+  @impl true
   def mount(%{"patient_id" => patient_id}, _session, socket) do
     case Accounts.get_patient_with_user(patient_id) do
-      nil ->
-        {:ok, push_navigate(socket, to: "/dashboard")}
+      nil -> {:ok, push_navigate(socket, to: "/dashboard")}
 
       patient ->
         user_id = patient.user.id
-        {:ok, assign(socket, patient: patient, user_id: user_id, patient_id: patient.id)}
+        age = Accounts.get_patient_age(user_id)
+        email = Accounts.get_patient_email(user_id)
+
+        {:ok,
+         assign(socket,
+           patient: patient,
+           user_id: user_id,
+           patient_id: patient.id,
+           age: age,
+           email: email
+         )}
     end
   end
 
+  @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col items-center justify-center h-96 bg-gray-300 p-6 mt-12 rounded-lg">
-      <img
-        src={"/" <> (@patient.user.profile_image || "images/profile/profile.svg")}
-        alt="Profile Picture"
-        class="w-24 h-24 rounded-full mx-auto mb-4 border-2 border-gray-300"
-      />
-      <h1 class="text-xl font-bold text-gray-900">{@patient.user.name}</h1>
+    <div class="max-w-md mx-auto mt-10 bg-white shadow-xl rounded-lg text-gray-900">
+      <div class="rounded-t-lg h-32 overflow-hidden">
+        <img class="object-cover object-top w-full" src="/images/profile/ProfileHeader.png" alt="Header">
+      </div>
 
-      <div class="flex justify-center space-x-4 mt-6">
-        <.link
-          navigate={~p"/results/per_user?user_id=#{@patient.user.id}"}
-          class="border border-gray-500 px-4 py-2 rounded hover:bg-gray-200"
-        >
-          Ver Resultados do Paciente
-        </.link>
+      <div class="mx-auto w-28 h-28 relative -mt-14 border-4 border-white rounded-full overflow-hidden flex items-center justify-center bg-white">
+        <img class="object-cover object-center h-24 w-24" src={"/" <> (@patient.user.profile_image || "images/profile/profile.svg")} alt="Profile Picture">
+      </div>
 
-        <.link
-          navigate={~p"/notes/#{@patient.user.id}"}
-          class="border border-gray-500 px-4 py-2 rounded"
-        >
-          Notas
-        </.link>
+      <div class="text-center mt-2">
+        <h2 class="font-semibold text-xl"><%= @patient.user.name %></h2>
+        <p class="text-gray-500 text-sm">Paciente</p>
+      </div>
+
+      <div class="py-4 mt-2 text-gray-700 flex items-center justify-center space-x-6">
+        <div class="flex items-center space-x-2">
+          <img src="/images/profile/email.svg" class="w-5 h-5" alt="Email Icon">
+          <p><%= @email %></p>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <img src="/images/profile/cake.svg" class="w-5 h-5" alt="Cake Icon">
+          <p><%= @age %> anos</p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t mx-8 mt-2">
+        <div class="flex justify-center space-x-4">
+          <.link navigate={~p"/results/per_user?user_id=#{@patient.user.id}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
+            Ver Resultados
+          </.link>
+
+          <.link navigate={~p"/notes/#{@patient.user.id}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
+            Notas
+          </.link>
+        </div>
       </div>
     </div>
     """

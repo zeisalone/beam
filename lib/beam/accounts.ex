@@ -80,7 +80,7 @@ defmodule Beam.Accounts do
     |> Repo.insert()
   end
 
-  def verify_user_type(user_id, therapist_id \\ nil) do
+  def verify_user_type(user_id, therapist_id \\ nil, birth_date \\ nil) do
     Repo.transaction(fn ->
       user = Repo.get!(User, user_id)
 
@@ -99,7 +99,6 @@ defmodule Beam.Accounts do
         "Paciente" when not is_nil(therapist_id) ->
           patient_id = UUID.uuid4()
 
-          # Alteração para evitar erros
           case Repo.get_by(Therapist, therapist_id: therapist_id) do
             nil ->
               Repo.rollback("Therapist with ID #{therapist_id} not found.")
@@ -110,7 +109,8 @@ defmodule Beam.Accounts do
                      |> Patient.changeset(%{
                        user_id: user.id,
                        patient_id: patient_id,
-                       therapist_id: therapist.therapist_id
+                       therapist_id: therapist.therapist_id,
+                       birth_date: birth_date
                      })
                    ) do
                 {:ok, _patient} -> :ok
@@ -497,5 +497,47 @@ defmodule Beam.Accounts do
 
   def get_therapist_by_user_id(user_id) do
     Repo.get_by(Therapist, user_id: user_id)
+  end
+
+  def get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      nil -> nil
+      %Patient{birth_date: birth_date} ->
+        calculate_age(birth_date)
+    end
+  end
+
+  def get_patient_email(user_id) do
+    case Repo.get(User, user_id) do
+      nil -> nil
+      %User{email: email} -> email
+    end
+  end
+
+  defp calculate_age(birth_date) do
+    today = Date.utc_today()
+    years = today.year - birth_date.year
+    if Date.compare(Date.new!(today.year, birth_date.month, birth_date.day), today) == :gt do
+      years - 1
+    else
+      years
+    end
+  end
+
+  def get_patient_birth_date(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      nil -> nil
+      patient -> patient.birth_date
+    end
+  end
+
+  def update_patient_birth_date(user_id, new_birth_date) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      nil -> {:error, :not_found}
+      patient ->
+        patient
+        |> Ecto.Changeset.change(birth_date: new_birth_date)
+        |> Repo.update()
+    end
   end
 end

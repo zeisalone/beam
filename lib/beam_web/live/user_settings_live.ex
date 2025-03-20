@@ -16,6 +16,7 @@ defmodule BeamWeb.UserSettingsLive do
       |> assign(:password_form, to_form(password_changeset))
       |> assign(:trigger_submit, false)
       |> assign(:selected_image, user.profile_image)
+      |> assign(:birth_date, (if user.type == "Paciente", do: Accounts.get_patient_birth_date(user.id), else: nil))
 
     {:ok, socket}
   end
@@ -36,6 +37,27 @@ defmodule BeamWeb.UserSettingsLive do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Erro ao atualizar a imagem de perfil.")}
+    end
+  end
+
+  def handle_event("update_birth_date", %{"birth_date" => birth_date_string}, socket) do
+    user = socket.assigns.current_user
+
+    case Date.from_iso8601(birth_date_string) do
+      {:ok, birth_date} ->
+        case Accounts.update_patient_birth_date(user.id, birth_date) do
+          {:ok, _updated_patient} ->
+            {:noreply,
+             socket
+             |> assign(:birth_date, birth_date)
+             |> put_flash(:info, "Data de nascimento atualizada!")}
+
+          {:error, _changeset} ->
+            {:noreply, put_flash(socket, :error, "Erro ao atualizar a data de nascimento.")}
+        end
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Formato de data inválido.")}
     end
   end
 
@@ -105,7 +127,7 @@ defmodule BeamWeb.UserSettingsLive do
     ~H"""
     <.header class="text-center">
       Configurações da Conta
-      <:subtitle>Gerencie seu email, palavra-passe e imagem de perfil</:subtitle>
+      <:subtitle>Gerencie seu email, palavra-passe, imagem de perfil e data de nascimento</:subtitle>
     </.header>
 
     <div class="flex justify-center space-x-4 mt-4">
@@ -129,6 +151,23 @@ defmodule BeamWeb.UserSettingsLive do
     <.button phx-click="save_profile_image" phx-disable-with="Salvando...">
       Salvar Imagem de Perfil
     </.button>
+
+     <%= if @current_user.type == "Paciente" do %>
+        <div>
+          <h2 class="text-lg font-semibold mt-6">Data de Nascimento</h2>
+          <form phx-submit="update_birth_date">
+            <input
+              type="date"
+              name="birth_date"
+              value={@birth_date}
+              class="mt-2 border rounded p-2"
+            />
+            <button type="submit" class="ml-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:shadow-lg">
+              Salvar
+            </button>
+          </form>
+        </div>
+      <% end %>
 
     <div class="space-y-12 divide-y">
       <div>

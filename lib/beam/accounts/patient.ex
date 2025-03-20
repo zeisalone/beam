@@ -4,6 +4,7 @@ defmodule Beam.Accounts.Patient do
 
   schema "patients" do
     field :patient_id, :string
+    field :birth_date, :date, default: ~D[1980-01-01]
     belongs_to :user, Beam.Accounts.User
     belongs_to :therapist, Beam.Accounts.Therapist, references: :therapist_id, type: :string
 
@@ -12,8 +13,8 @@ defmodule Beam.Accounts.Patient do
 
   def changeset(patient, attrs) do
     patient
-    |> cast(attrs, [:patient_id, :user_id, :therapist_id])
-    |> validate_required([:patient_id, :user_id, :therapist_id])
+    |> cast(attrs, [:patient_id, :user_id, :therapist_id, :birth_date])
+    |> validate_required([:patient_id, :user_id, :therapist_id, :birth_date])
     |> unique_constraint(:patient_id)
   end
 end

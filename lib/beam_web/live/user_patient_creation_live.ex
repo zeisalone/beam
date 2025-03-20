@@ -19,6 +19,7 @@ defmodule BeamWeb.UserPatientCreationLive do
         <.input field={@form[:email]} type="email" label="Email" required />
         <.input field={@form[:password]} type="password" label="Palavra-passe" required />
         <.input field={@form[:type]} type="select" label="Tipo" options={["Paciente"]} required />
+        <.input field={@form[:birth_date]} type="date" label="Data de Nascimento" required />
         <.input
           field={@form[:therapist_id]}
           type="select"
@@ -59,34 +60,41 @@ defmodule BeamWeb.UserPatientCreationLive do
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
-    case Accounts.register_user(user_params) do
-      {:ok, user} ->
-        {:ok, _} =
-          Accounts.deliver_user_confirmation_instructions(
-            user,
-            &url(~p"/users/confirm/#{&1}")
-          )
+    case Date.from_iso8601(user_params["birth_date"]) do
+      {:ok, birth_date} ->
+        updated_params = Map.put(user_params, "birth_date", birth_date)
+        case Accounts.register_user(updated_params) do
+          {:ok, user} ->
+            {:ok, _} =
+              Accounts.deliver_user_confirmation_instructions(
+                user,
+                &url(~p"/users/confirm/#{&1}")
+              )
 
-        changeset = Accounts.change_user_registration(user)
+            changeset = Accounts.change_user_registration(user)
 
-        socket =
-          socket
-          |> assign(trigger_submit: true, patient_created: true, created_user: user)
-          |> assign_form(changeset)
+            socket =
+              socket
+              |> assign(trigger_submit: true, patient_created: true, created_user: user)
+              |> assign_form(changeset)
 
-        case Accounts.verify_user_type(user.id, user_params["therapist_id"]) do
-          {:ok, :ok} ->
-            {:noreply, push_navigate(socket, to: ~p"/dashboard")}
+            case Accounts.verify_user_type(user.id, user_params["therapist_id"], birth_date) do
+              {:ok, :ok} ->
+                {:noreply, push_navigate(socket, to: ~p"/dashboard")}
 
-          {:error, reason} ->
-            {:noreply,
-             socket
-             |> put_flash(:error, "Erro ao associar paciente ao terapeuta: #{inspect(reason)}")
-             |> assign(patient_created: false)}
+              {:error, reason} ->
+                {:noreply,
+                 socket
+                 |> put_flash(:error, "Erro ao associar paciente ao terapeuta: #{inspect(reason)}")
+                 |> assign(patient_created: false)}
+            end
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}
         end
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, socket |> assign(check_errors: true) |> assign_form(changeset)}
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Formato de data inválido.")}
     end
   end
 
