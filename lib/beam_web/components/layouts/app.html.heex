@@ -1,7 +1,9 @@
 <header class="px-4 sm:px-6 lg:px-8 border-b border-zinc-100 py-3 text-sm">
-  <div class="flex items-center justify-between">   
+  <div class="flex items-center justify-between">
     <div>
-      <img src="/images/BEAM2.png" alt="BEAM Logo" class="h-10 w-auto">
+      <.link href={~p"/"}>
+        <img src="/images/BEAM2.png" alt="BEAM Logo" class="h-10 w-auto">
+      </.link>
     </div>
     <ul class="relative z-10 flex items-center gap-4">
       <%= if @current_user do %>
@@ -13,15 +15,7 @@
             href={~p"/users/profile"}
             class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
           >
-            Profile
-          </.link>
-        </li>
-        <li>
-          <.link
-            href={~p"/dashboard"}
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
-          >
-            Dashboard
+            Perfil
           </.link>
         </li>
         <li>
@@ -29,17 +23,27 @@
             href={~p"/tasks"}
             class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
           >
-            Tasks
+            Tarefas
           </.link>
         </li>
-        <li>
-          <.link
-            href={~p"/results"}
-            class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
-          >
-            Resultados
-          </.link>
-        </li>
+        <%= if @current_user.type in ["Terapeuta", "Admin"] do %>
+          <li>
+            <.link
+              href={~p"/dashboard"}
+              class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            >
+              Dashboard
+            </.link>
+          </li>
+          <li>
+            <.link
+              href={~p"/results"}
+              class="text-[0.8125rem] leading-6 text-zinc-900 font-semibold hover:text-zinc-700"
+            >
+              Resultados
+            </.link>
+          </li>
+        <% end %>
         <li>
           <.link
             href={~p"/users/log_out"}
@@ -68,7 +72,6 @@
         </li>
       <% end %>
     </ul>
-
   </div>
 </header>
 

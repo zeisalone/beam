@@ -82,10 +82,11 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
     user_ids
     |> Enum.map(fn user_id ->
       case Beam.Repo.get(Beam.Accounts.User, user_id) do
-        nil -> %{id: user_id, name: "Desconhecido"}
-        user -> %{id: user.id, name: user.name}
+        %{type: "Paciente"} = user -> %{id: user.id, name: user.name}
+        _ -> nil
       end
     end)
+    |> Enum.reject(&is_nil/1)
   end
 
   def render(assigns) do

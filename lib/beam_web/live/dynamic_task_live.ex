@@ -14,38 +14,30 @@ defmodule BeamWeb.DynamicTaskLive do
         {:ok, push_navigate(socket, to: "/tasks")}
 
       %Task{type: "math_operation"} ->
-        {:ok,
-         assign(socket,
-           live_view: BeamWeb.MathOperationLive,
-           params: params,
-           current_user: current_user,
-           live_action: live_action,
-           difficulty: difficulty
-         )}
+        {:ok, assign_task(socket, BeamWeb.MathOperationLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "searching_for_an_answer"} ->
-        {:ok,
-         assign(socket,
-           live_view: BeamWeb.SearchingForAnAnswerLive,
-           params: params,
-           current_user: current_user,
-           live_action: live_action,
-           difficulty: difficulty
-         )}
+        {:ok, assign_task(socket, BeamWeb.SearchingForAnAnswerLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "greater_than_five"} ->
-        {:ok,
-         assign(socket,
-           live_view: BeamWeb.GreaterThanFiveLive,
-           params: params,
-           current_user: current_user,
-           live_action: live_action,
-           difficulty: difficulty
-         )}
+        {:ok, assign_task(socket, BeamWeb.GreaterThanFiveLive, params, current_user, live_action, difficulty)}
+
+      %Task{type: "reverse_sequence"} ->
+        {:ok, assign_task(socket, BeamWeb.ReverseSequenceLive, params, current_user, live_action, difficulty)}
 
       _ ->
         {:ok, push_navigate(socket, to: "/tasks")}
     end
+  end
+
+  defp assign_task(socket, live_view, params, current_user, live_action, difficulty) do
+    assign(socket,
+      live_view: live_view,
+      params: params,
+      current_user: current_user,
+      live_action: live_action,
+      difficulty: difficulty
+    )
   end
 
   defp maybe_to_atom(nil), do: nil

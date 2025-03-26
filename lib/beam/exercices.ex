@@ -66,12 +66,17 @@ defmodule Beam.Exercices do
   def list_task_results(task_id) do
     results = Repo.all(from r in Result, where: r.task_id == ^task_id)
 
-    Enum.map(results, fn result ->
+    results
+    |> Enum.filter(fn result ->
+      case Beam.Repo.get(Beam.Accounts.User, result.user_id) do
+        %{type: "Paciente"} -> true
+        _ -> false
+      end
+    end)
+    |> Enum.map(fn result ->
       type =
         case Repo.get_by(Test, result_id: result.id) do
-          %Test{} ->
-            "Teste"
-
+          %Test{} -> "Teste"
           nil ->
             case Repo.get_by(Training, result_id: result.id) do
               %Training{difficulty: difficulty} -> "Treino (#{difficulty})"

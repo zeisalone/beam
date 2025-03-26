@@ -8,6 +8,7 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
   @phase_duration 3000
   @cycle_duration 2000
   @total_phases 20
+  @intro_duration 3000
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
@@ -17,7 +18,7 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :facil
 
     if current_user do
-      if connected?(socket), do: Process.send_after(self(), :start_phase, 0)
+      if connected?(socket), do: Process.send_after(self(), :start_intro, 0)
 
       target = @default_target
 
@@ -40,7 +41,8 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
          calculating_results: false,
          in_cycle: false,
          live_action: live_action,
-         difficulty: difficulty
+         difficulty: difficulty,
+         show_intro: true
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
@@ -51,6 +53,11 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(value), do: value
 
+  def handle_info(:start_intro, socket) do
+    Process.send_after(self(), :start_phase, @intro_duration)
+    {:noreply, socket}
+  end
+
   def handle_info(:start_phase, socket) do
     phase = SearchingForAnAnswer.generate_phase(socket.assigns.target, socket.assigns.difficulty)
 
@@ -60,7 +67,8 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
      assign(socket,
        phase: phase,
        current_phase_start: System.monotonic_time(),
-       in_cycle: false
+       in_cycle: false,
+       show_intro: false
      )}
   end
 
@@ -208,17 +216,31 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
       <%= if @calculating_results do %>
         <p class="text-2xl font-bold text-gray-800">A calcular resultados...</p>
       <% else %>
-        <div class="relative flex items-center justify-center w-full h-full bg-white">
-          <div class="relative flex items-center justify-center w-[85vw] h-[85vh] border-[20px] border-gray-600">
-            <%= for %{position: position, shape: shape, color: color} <- @phase do %>
-              <div class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center #{tailwind_color(color)} rounded-full bg-white border-4 border-gray-600"}>
-                <div class="w-[75%] h-[75%] flex items-center justify-center">
-                  {raw(shape_svg(shape, color))}
-                </div>
+        <%= if @show_intro do %>
+          <div class="flex flex-col items-center justify-center w-full h-full bg-white">
+            <p class="text-2xl font-bold text-gray-800 mb-4">A figura que tens de seguir</p>
+            <div class="w-32 h-32 flex items-center justify-center border-4 border-gray-600 rounded-full">
+              <div class="w-24 h-24">
+                {raw(shape_svg(@target.shape, @target.color))}
               </div>
-            <% end %>
+            </div>
+            <p class="text-xl font-semibold mt-2 text-gray-700">
+              Target: <span class={"#{tailwind_color(@target.color)}"}><%= @target.shape %></span>
+            </p>
           </div>
-        </div>
+        <% else %>
+          <div class="relative flex items-center justify-center w-full h-full bg-white">
+            <div class="relative flex items-center justify-center w-[85vw] h-[85vh] border-[20px] border-gray-600">
+              <%= for %{position: position, shape: shape, color: color} <- @phase do %>
+                <div class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center #{tailwind_color(color)} rounded-full bg-white border-4 border-gray-600"}>
+                  <div class="w-[75%] h-[75%] flex items-center justify-center">
+                    {raw(shape_svg(shape, color))}
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
       <% end %>
     </div>
     """

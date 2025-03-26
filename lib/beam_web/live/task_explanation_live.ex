@@ -158,6 +158,32 @@ defmodule BeamWeb.TaskExplanationLive do
               </div>
             <% end %>
           </div>
+          <div class="relative">
+            <.button class="w-40 text-white" phx-click="toggle_difficulty">Experimentar Tarefa</.button>
+            <%= if @show_difficulty do %>
+              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48">
+                <form phx-change="select_difficulty">
+                  <select name="difficulty" class="block w-full p-2 border rounded-md text-gray-700">
+                    <option value="">Escolha a dificuldade</option>
+                    <option value="facil">Fácil</option>
+                    <option value="medio">Médio</option>
+                    <option value="dificil">Difícil</option>
+                    <option value="criado">Criado</option>
+                  </select>
+                </form>
+
+                <%= if @selected_difficulty do %>
+                  <.link navigate={
+                    ~p"/tasks/#{@task.id}/training?live_action=training&difficulty=#{@selected_difficulty}"
+                  }>
+                    <.button class="mt-2 w-full text-white p-2 rounded-md hover:bg-green-600">
+                      Iniciar
+                    </.button>
+                  </.link>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
         <% end %>
       </div>
 

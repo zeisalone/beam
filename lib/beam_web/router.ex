@@ -111,6 +111,7 @@ defmodule BeamWeb.Router do
       live "/dashboard/new_patient", UserPatientCreationLive, :new
       live "/dashboard/patient/:patient_id", PatientProfileLive, :show
       live "/notes/:patient_id", UserNotesLive, :show
+      live "/dashboard", DashboardLive, :index
     end
   end
 
@@ -136,11 +137,5 @@ defmodule BeamWeb.Router do
 
   pipeline :paciente do
     plug :ensure_paciente
-  end
-
-  scope "/dashboard", BeamWeb do
-    pipe_through [:browser, :require_authenticated_user]
-
-    get "/", DashboardController, :index
   end
 end
