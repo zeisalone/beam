@@ -188,7 +188,7 @@ defmodule BeamWeb.TaskExplanationLive do
       </div>
 
       <textarea
-        class="block w-full h-80 rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-400 bg-white p-3 resize-none overflow-auto"
+        class="block w-full whitespace-pre-line h-80 rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-400 bg-white p-3 resize-none overflow-auto"
         readonly
       >
           <%= @task.description %>

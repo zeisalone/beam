@@ -25,6 +25,9 @@ defmodule BeamWeb.DynamicTaskLive do
       %Task{type: "reverse_sequence"} ->
         {:ok, assign_task(socket, BeamWeb.ReverseSequenceLive, params, current_user, live_action, difficulty)}
 
+      %Task{type: "code_of_symbols"} ->
+        {:ok, assign_task(socket, BeamWeb.CodeOfSymbolsLive, params, current_user, live_action, difficulty)}
+
       _ ->
         {:ok, push_navigate(socket, to: "/tasks")}
     end

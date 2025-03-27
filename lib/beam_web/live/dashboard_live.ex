@@ -22,21 +22,21 @@ defmodule BeamWeb.DashboardLive do
        total_terapeutas: length(all_terapeutas),
        search_pacientes: "",
        search_terapeutas: "",
+       only_mine: false,
        current_user: current_user
      )}
   end
 
   @impl true
   def handle_event("search_pacientes", %{"search" => search_term}, socket) do
-    pacientes_filtrados =
-      socket.assigns.all_pacientes
-      |> Enum.filter(fn p ->
-        String.contains?(String.downcase(p.user.name), String.downcase(search_term))
-      end)
-
-    pacientes = if search_term == "", do: socket.assigns.all_pacientes, else: pacientes_filtrados
-
+    pacientes = filter_pacientes(socket.assigns.all_pacientes, search_term, socket.assigns.only_mine, socket.assigns.current_user)
     {:noreply, assign(socket, pacientes: pacientes, search_pacientes: search_term)}
+  end
+
+  def handle_event("toggle_only_mine", %{"only_mine" => only_mine_val}, socket) do
+    only_mine = only_mine_val == "true"
+    pacientes = filter_pacientes(socket.assigns.all_pacientes, socket.assigns.search_pacientes, only_mine, socket.assigns.current_user)
+    {:noreply, assign(socket, pacientes: pacientes, only_mine: only_mine)}
   end
 
   @impl true
@@ -50,6 +50,16 @@ defmodule BeamWeb.DashboardLive do
     terapeutas = if search_term == "", do: socket.assigns.all_terapeutas, else: terapeutas_filtrados
 
     {:noreply, assign(socket, terapeutas: terapeutas, search_terapeutas: search_term)}
+  end
+
+  defp filter_pacientes(all_pacientes, search_term, only_mine, current_user) do
+    all_pacientes
+    |> Enum.filter(fn p ->
+      String.contains?(String.downcase(p.user.name), String.downcase(search_term || ""))
+    end)
+    |> Enum.filter(fn p ->
+      not only_mine or (p.therapist.user.id == current_user.id)
+    end)
   end
 
   @impl true
@@ -76,37 +86,52 @@ defmodule BeamWeb.DashboardLive do
 
       <%= if @current_user.type in ["Admin", "Terapeuta"] do %>
         <div class="mt-8">
-          <div class="text-lg font-bold text-gray-800">Tabela de Pacientes</div>
-
-          <div class="mt-3 mb-4 w-full">
-            <form phx-change="search_pacientes" class="relative w-full max-w-4xl">
-              <div class="flex items-center px-3 py-1 w-full">
-                <img src="/images/search.svg" class="mr-2 h-4 w-4" />
-                <input
-                  type="text"
-                  name="search"
-                  placeholder="Pesquisar pacientes..."
-                  class="w-full text-sm text-gray-700 placeholder-gray-400 bg-transparent focus:outline-none"
-                  value={@search_pacientes}
-                />
-              </div>
-            </form>
-          </div>
-
-          <.table id="pacientes" rows={@pacientes}>
-            <:col :let={paciente} label="Nome do Paciente">
-              <.link navigate={~p"/dashboard/patient/#{paciente.user.id}"} class="hover:underline">
-                {paciente.user.name}
-              </.link>
-            </:col>
-            <:col :let={paciente} label="Email do Paciente">
-              {paciente.user.email}
-            </:col>
-            <:col :let={paciente} label="Terapeuta Associado">
-              {paciente.therapist.user.name}
-            </:col>
-          </.table>
+          <div class="text-lg font-bold text-gray-800 mb-1">Tabela de Pacientes</div>
+          <.link navigate={~p"/dashboard/new_patient"} class="text-blue-500 hover:underline">
+            Novo Paciente
+          </.link>
         </div>
+        <div class="flex items-center space-x-2 mb-2">
+          <input
+            type="checkbox"
+            name="only_mine"
+            id="only_mine"
+            value="true"
+            checked={@only_mine}
+            phx-click="toggle_only_mine"
+            phx-value-only_mine={to_string(!@only_mine)}
+            class="h-4 w-4 text-blue-600 border-gray-300 rounded"
+          />
+          <label for="only_mine" class="text-sm text-gray-700">Apenas meus pacientes</label>
+        </div>
+        <div class="mt-3 mb-4 w-full">
+          <form phx-change="search_pacientes" class="relative w-full max-w-4xl">
+            <div class="flex items-center px-3 py-1 w-full">
+              <img src="/images/search.svg" class="mr-2 h-4 w-4" />
+              <input
+                type="text"
+                name="search"
+                placeholder="Pesquisar pacientes..."
+                class="w-full text-sm text-gray-700 placeholder-gray-400 bg-transparent focus:outline-none"
+                value={@search_pacientes}
+              />
+            </div>
+          </form>
+        </div>
+
+        <.table id="pacientes" rows={@pacientes}>
+          <:col :let={paciente} label="Nome do Paciente">
+            <.link navigate={~p"/dashboard/patient/#{paciente.user.id}"} class="hover:underline">
+              {paciente.user.name}
+            </.link>
+          </:col>
+          <:col :let={paciente} label="Email do Paciente">
+            {paciente.user.email}
+          </:col>
+          <:col :let={paciente} label="Terapeuta Associado">
+            {paciente.therapist.user.name}
+          </:col>
+        </.table>
       <% end %>
 
       <div class="mt-8">

@@ -60,62 +60,65 @@ defmodule BeamWeb.UserNotesLive do
   end
 
   def handle_event("delete_note", %{"note_id" => note_id}, socket) do
-    IO.inspect(note_id, label: "ID da Nota a ser deletada")
-
     case Accounts.delete_note(note_id) do
       {:ok, _} ->
         updated_notes = Accounts.list_notes_for_patient(socket.assigns.patient.patient_id)
-
         {:noreply, assign(socket, notes: updated_notes)}
 
       {:error, _reason} ->
-        IO.puts("Erro ao deletar nota.")
+        IO.puts("Erro ao apagar nota.")
         {:noreply, socket}
     end
   end
 
   def render(assigns) do
     ~H"""
-    <div class="flex p-6 space-x-6">
-      <div class="flex flex-col">
-        <h2 class="text-lg font-semibold">Nova Nota</h2>
-
-        <form phx-submit="add_note" class="flex flex-col space-y-2">
-          <textarea
-            id="note-input"
-            name="note"
-            class="border border-gray-300 p-2 rounded w-64 h-32"
-            phx-input="update_note"
-            phx-debounce="300"
-            value={@new_note}
-          ></textarea>
-
-          <button type="submit" class="bg-gray-900 text-white px-4 py-2 rounded w-full">
-            Adicionar
+    <div class="max-w-7xl mx-auto mt-10 bg-white shadow-lg rounded-lg flex font-sans">
+      <div class="w-1/3 p-8 border-r border-gray-200 bg-white max-h-[calc(100vh-250px)] overflow-y-auto">
+        <h2 class="text-2xl font-bold mb-6 text-gray-900">Nova Nota</h2>
+        <form phx-submit="add_note">
+          <div class="mb-6">
+            <textarea
+              name="note"
+              phx-input="update_note"
+              phx-debounce="300"
+              rows="8"
+              class="w-full p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 resize-none text-sm"
+              placeholder="Digite o conteúdo da sua nota"
+              value={@new_note}
+            ></textarea>
+          </div>
+          <button
+            type="submit"
+            class="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-4 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center"
+          >
+            Salvar Nota
           </button>
         </form>
       </div>
 
-      <div class="flex flex-col flex-1">
-        <h1 class="text-xl font-bold">{@patient.user.name}</h1>
-        <div class="border border-gray-300 p-4 rounded w-full">
-          <%= for note <- @notes do %>
-            <div class="mb-4 border border-gray-200 p-2 rounded flex justify-between items-center">
-              <div class="flex-1 pr-4">
-                <p class="text-gray-600 text-sm">
-                  {Calendar.strftime(note.inserted_at, "%d/%m/%Y")}
-                </p>
-                <p class="text-gray-900 break-words">{note.description}</p>
-              </div>
+      <div class="w-2/3 p-8 bg-gray-50">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-900">Notas de {@patient.user.name}</h2>
+        </div>
 
-              <button
-                phx-click="delete_note"
-                phx-value-note_id={note.id}
-                onclick="return confirm('Tem certeza que deseja excluir esta nota?')"
-                class="flex-shrink-0"
-              >
-                <img src="/images/trash.svg" alt="Deletar" class="w-5 h-5" />
-              </button>
+        <div class="space-y-6 overflow-y-auto max-h-[calc(100vh-250px)]">
+          <%= for note <- @notes do %>
+            <div class="bg-white p-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200 group max-w-2xl mx-auto">
+              <p class="text-gray-700 text-sm mb-4 leading-relaxed break-words whitespace-pre-line">
+                {note.description}
+              </p>
+              <div class="flex justify-between items-center text-xs text-gray-500 pt-2">
+                <span>Criado em: {Calendar.strftime(note.inserted_at, "%d/%m/%Y")}</span>
+                <button
+                  phx-click="delete_note"
+                  phx-value-note_id={note.id}
+                  onclick="return confirm('Tem certeza que deseja excluir esta nota?')"
+                  class="text-gray-400 hover:text-red-500 transition duration-200 flex items-center space-x-1"
+                >
+                  <img src="/images/trash.svg" alt="Deletar" class="w-4 h-4" />
+                </button>
+              </div>
             </div>
           <% end %>
         </div>
