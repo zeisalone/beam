@@ -12,13 +12,14 @@ defmodule Beam.Accounts.User do
     field :name, :string
     field :type, :string
     field :profile_image, :string, default: "images/profile/profile.svg"
+    field :custom_images, {:array, :string}, default: []
 
     timestamps(type: :utc_datetime)
   end
 
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:email, :name, :type, :profile_image])
+    |> cast(attrs, [:email, :name, :type, :profile_image, :custom_images])
     |> validate_required([:email, :name, :type, :profile_image])
     |> validate_inclusion(:type, ["Paciente", "Terapeuta", "Admin"],
       message: "Deve ser Paciente, Terapeuta, ou Admin"

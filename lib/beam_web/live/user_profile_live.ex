@@ -4,17 +4,21 @@ defmodule BeamWeb.UserProfileLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    current_user = socket.assigns[:current_user]
-    if current_user do
-      email = Accounts.get_patient_email(current_user.id)
-      age = if current_user.type == "Paciente", do: Accounts.get_patient_age(current_user.id), else: nil
-      {:ok,
-       assign(socket,
-         age: age,
-         email: email
-       )}
-    else
-      {:ok, push_navigate(socket, to: "/users/log_in")}
+    case socket.assigns[:current_user] do
+      nil ->
+        {:ok, push_navigate(socket, to: "/users/log_in")}
+
+      %{} = current_user ->
+        user = Accounts.get_user!(current_user.id)
+        email = Accounts.get_patient_email(user.id)
+        age = if user.type == "Paciente", do: Accounts.get_patient_age(user.id), else: nil
+
+        {:ok,
+         assign(socket,
+           current_user: user,
+           email: email,
+           age: age
+         )}
     end
   end
 
@@ -27,7 +31,9 @@ defmodule BeamWeb.UserProfileLive do
       </div>
 
       <div class="mx-auto w-28 h-28 relative -mt-14 border-4 border-white rounded-full overflow-hidden flex items-center justify-center bg-white">
-        <img class="object-cover object-center h-24 w-24" src={"/" <> (@current_user.profile_image || "images/profile/profile.svg")} alt="Profile Picture">
+        <img class="object-cover object-center h-24 w-24"
+             src={Path.join("/", @current_user.profile_image || "images/profile/profile.svg")}
+             alt="Profile Picture" />
       </div>
 
       <div class="text-center mt-2">

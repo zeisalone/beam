@@ -104,28 +104,58 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     <div class="p-10">
       <h1 class="text-3xl font-bold mb-6">Resultados de {@user_name}</h1>
 
-      <form phx-change="filter_task" class="mb-6">
-        <label for="task_filter" class="block text-sm font-medium text-gray-700">
-          Filtrar por Tarefa:
-        </label>
-        <select name="task_id" id="task_filter" class="mt-1 p-2 border rounded w-full">
-          <option value="">Todas as Tarefas</option>
-          <%= for task <- @tasks do %>
-            <option value={task.id} selected={@selected_task_id == task.id}>{task.name}</option>
-          <% end %>
-        </select>
-      </form>
+     <div class="flex flex-wrap items-end justify-between gap-6 mb-6">
+      <div class="flex gap-4">
+        <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="text-sm font-semibold">Média de Precisão</div>
+          <div class="text-2xl font-bold">
+            <%= if Enum.any?(@results) do %>
+              <%= Float.round(Enum.reduce(@results, 0, fn r, acc -> acc + r.accuracy end) / length(@results) * 100, 1) %>%
+            <% else %>
+              N/A
+            <% end %>
+          </div>
+        </div>
 
-      <form phx-change="filter_result_type" class="mb-6">
-        <label for="result_type_filter" class="block text-sm font-medium text-gray-700">
-          Filtrar por Tipo:
-        </label>
-        <select name="result_type" id="result_type_filter" class="mt-1 p-2 border rounded w-full">
-          <option value="">Todos</option>
-          <option value="Teste" selected={@selected_result_type == "Teste"}>Testes</option>
-          <option value="Treino" selected={@selected_result_type == "Treino"}>Treinos</option>
-        </select>
-      </form>
+        <div class="bg-blue-100 text-blue-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="text-sm font-semibold">Média de Tempo de Reação</div>
+          <div class="text-2xl font-bold">
+            <%= if Enum.any?(@results) do %>
+              <%= Float.round(Enum.reduce(@results, 0, fn r, acc -> acc + r.reaction_time end) / length(@results) / 1000, 2) %>s
+            <% else %>
+              N/A
+            <% end %>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-4 flex-wrap items-end">
+        <form phx-change="filter_task">
+          <label for="task_filter" class="block text-sm font-medium text-gray-700 mb-1">
+            Filtrar por Tarefa:
+          </label>
+          <select name="task_id" id="task_filter" class="p-2 border rounded w-60">
+            <option value="">Todas as Tarefas</option>
+            <%= for task <- @tasks do %>
+              <option value={task.id} selected={@selected_task_id == task.id}>
+                <%= task.name %>
+              </option>
+            <% end %>
+          </select>
+        </form>
+
+        <form phx-change="filter_result_type">
+          <label for="result_type_filter" class="block text-sm font-medium text-gray-700 mb-1">
+            Filtrar por Tipo:
+          </label>
+          <select name="result_type" id="result_type_filter" class="p-2 border rounded w-40">
+            <option value="">Todos</option>
+            <option value="Teste" selected={@selected_result_type == "Teste"}>Testes</option>
+            <option value="Treino" selected={@selected_result_type == "Treino"}>Treinos</option>
+          </select>
+        </form>
+      </div>
+    </div>
 
       <%= if @results == [] do %>
         <p class="text-center text-gray-500">Nenhum resultado encontrado.</p>

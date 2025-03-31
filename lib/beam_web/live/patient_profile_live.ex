@@ -5,17 +5,18 @@ defmodule BeamWeb.PatientProfileLive do
   @impl true
   def mount(%{"patient_id" => patient_id}, _session, socket) do
     case Accounts.get_patient_with_user(patient_id) do
-      nil -> {:ok, push_navigate(socket, to: "/dashboard")}
+      nil ->
+        {:ok, push_navigate(socket, to: "/dashboard")}
 
-      patient ->
-        user_id = patient.user.id
-        age = Accounts.get_patient_age(user_id)
-        email = Accounts.get_patient_email(user_id)
+      %{user: user} = patient ->
+        full_user = Accounts.get_user!(user.id)
+        age = Accounts.get_patient_age(full_user.id)
+        email = Accounts.get_patient_email(full_user.id)
 
         {:ok,
          assign(socket,
-           patient: patient,
-           user_id: user_id,
+           patient: %{patient | user: full_user},
+           user_id: full_user.id,
            patient_id: patient.id,
            age: age,
            email: email
@@ -32,7 +33,9 @@ defmodule BeamWeb.PatientProfileLive do
       </div>
 
       <div class="mx-auto w-28 h-28 relative -mt-14 border-4 border-white rounded-full overflow-hidden flex items-center justify-center bg-white">
-        <img class="object-cover object-center h-24 w-24" src={"/" <> (@patient.user.profile_image || "images/profile/profile.svg")} alt="Profile Picture">
+        <img class="object-cover object-center h-24 w-24"
+             src={Path.join("/", @patient.user.profile_image || "images/profile/profile.svg")}
+             alt="Profile Picture" />
       </div>
 
       <div class="text-center mt-2">

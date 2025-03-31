@@ -8,7 +8,7 @@ defmodule Beam.Exercices.Training do
 
     belongs_to :task, Beam.Exercices.Task
     belongs_to :result, Beam.Exercices.Result, foreign_key: :result_id
-    belongs_to :user, Beam.Exercices.User
+    belongs_to :user, Beam.Accounts.User
 
     timestamps(type: :utc_datetime)
   end
