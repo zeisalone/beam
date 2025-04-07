@@ -64,7 +64,7 @@ defmodule BeamWeb.UserLoginLive do
   def mount(_params, _session, socket) do
     email = Phoenix.Flash.get(socket.assigns.flash, :email)
     form = to_form(%{"email" => email}, as: "user")
-    {:ok, assign(socket, form: form, show_password: false)}
+    {:ok, assign(socket, form: form, full_screen?: false, show_password: false)}
   end
 
   def handle_event("update_form", %{"user" => user_params}, socket) do

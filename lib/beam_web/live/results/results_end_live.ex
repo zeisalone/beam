@@ -11,7 +11,7 @@ defmodule BeamWeb.Results.ResultsEndLive do
 
     latest_result = fetch_latest_result(user_id, task.id)
 
-    {:ok, assign(socket, results: [latest_result], task_name: task.name)}
+    {:ok, assign(socket, results: [latest_result], full_screen?: false, task_name: task.name)}
   end
 
   defp fetch_latest_result(user_id, task_id) do

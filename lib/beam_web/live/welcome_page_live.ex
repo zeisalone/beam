@@ -6,6 +6,7 @@ defmodule BeamWeb.WelcomePageLive do
 
     {:ok,
      assign(socket,
+       full_screen?: false,
        user_name: current_user.name
      )}
   end

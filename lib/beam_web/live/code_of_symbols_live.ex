@@ -12,6 +12,7 @@ defmodule BeamWeb.CodeOfSymbolsLive do
     task_id = Map.get(session, "task_id")
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
+    full_screen = Map.get(session, "full_screen?", true)
 
     if current_user do
       code = CodeOfSymbols.generate_code(difficulty)
@@ -36,6 +37,7 @@ defmodule BeamWeb.CodeOfSymbolsLive do
           game_started: false,
           game_finished: false,
           loading: true,
+          full_screen?: full_screen,
           timeout_ref: nil
         )
       if connected?(socket), do: Process.send_after(self(), :hide_loading, 1000)

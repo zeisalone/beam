@@ -12,6 +12,7 @@ defmodule BeamWeb.NameAndColorLive do
     current_user = Map.get(session, "current_user")
     task_id = Map.get(session, "task_id")
     live_action = Map.get(session, "live_action", "training") |> String.to_existing_atom()
+    full_screen = Map.get(session, "full_screen?", true)
 
     difficulty =
       case live_action do
@@ -48,6 +49,7 @@ defmodule BeamWeb.NameAndColorLive do
        total_reaction_time: 0,
        awaiting_response: false,
        results: [],
+       full_screen?: full_screen,
        show_intro: true,
        finished: false
      )}

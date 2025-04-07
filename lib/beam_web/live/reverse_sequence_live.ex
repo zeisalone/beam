@@ -37,6 +37,7 @@ defmodule BeamWeb.ReverseSequenceLive do
          live_action: live_action,
          difficulty: difficulty,
          show_sequence: true,
+         full_screen?: true,
          game_finished: false
        )}
     else

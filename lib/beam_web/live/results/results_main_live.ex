@@ -13,7 +13,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
       tasks = Exercices.list_tasks()
 
       {:ok,
-       assign(socket, show_modal: false, show_task_modal: false, patients: patients, tasks: tasks)}
+       assign(socket, show_modal: false, full_screen?: false, show_task_modal: false, patients: patients, tasks: tasks)}
     end
   end
 

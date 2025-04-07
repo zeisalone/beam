@@ -23,6 +23,7 @@ defmodule BeamWeb.DashboardLive do
        search_pacientes: "",
        search_terapeutas: "",
        only_mine: false,
+       full_screen?: false,
        current_user: current_user
      )}
   end

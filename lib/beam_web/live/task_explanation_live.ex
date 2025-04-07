@@ -27,6 +27,7 @@ defmodule BeamWeb.TaskExplanationLive do
        show_dropdown: false,
        selected_patient: nil,
        show_difficulty: false,
+       full_screen?: false,
        selected_difficulty: nil
      )}
   end

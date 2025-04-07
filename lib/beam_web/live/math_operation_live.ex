@@ -16,6 +16,7 @@ defmodule BeamWeb.MathOperationLive do
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty", "medio") |> maybe_to_atom()
+    full_screen = Map.get(session, "full_screen?", true)
 
     if current_user do
       questions = for _ <- 1..@total_questions, do: MathOperation.generate_question(difficulty)
@@ -43,6 +44,7 @@ defmodule BeamWeb.MathOperationLive do
          operator: first_operator,
          result: first_result,
          options: first_options,
+         full_screen?: full_screen,
          phase: :waiting,
          start_time: nil
        )}

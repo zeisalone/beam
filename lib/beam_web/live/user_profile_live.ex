@@ -17,6 +17,7 @@ defmodule BeamWeb.UserProfileLive do
          assign(socket,
            current_user: user,
            email: email,
+           full_screen?: false,
            age: age
          )}
     end

@@ -19,6 +19,7 @@ defmodule BeamWeb.PatientProfileLive do
            user_id: full_user.id,
            patient_id: patient.id,
            age: age,
+           full_screen?: false,
            email: email
          )}
     end

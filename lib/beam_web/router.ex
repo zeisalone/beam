@@ -12,6 +12,7 @@ defmodule BeamWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_user
+    plug :put_full_screen_flag
   end
 
   pipeline :redirect_if_authenticated do
@@ -137,5 +138,11 @@ defmodule BeamWeb.Router do
 
   pipeline :paciente do
     plug :ensure_paciente
+  end
+
+  defp put_full_screen_flag(conn, _opts) do
+    path = conn.request_path
+    full_screen = String.contains?(path, "/training") or String.contains?(path, "/test")
+    assign(conn, :full_screen?, full_screen)
   end
 end

@@ -15,6 +15,7 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
        task_id: task_id,
        task_name: task_name,
        users: users,
+       full_screen?: false,
        selected_user_id: nil,
        selected_result_type: nil,
        sort_order: :desc

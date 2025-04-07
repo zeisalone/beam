@@ -16,6 +16,7 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :facil
+    full_screen = Map.get(session, "full_screen?", true)
 
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :start_intro, 0)
@@ -42,6 +43,7 @@ defmodule BeamWeb.SearchingForAnAnswerLive do
          in_cycle: false,
          live_action: live_action,
          difficulty: difficulty,
+         full_screen?: full_screen,
          show_intro: true
        )}
     else

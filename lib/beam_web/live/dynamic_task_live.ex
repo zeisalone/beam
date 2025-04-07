@@ -31,6 +31,9 @@ defmodule BeamWeb.DynamicTaskLive do
       %Task{type: "name_and_color"} ->
         {:ok, assign_task(socket, BeamWeb.NameAndColorLive, params, current_user, live_action, difficulty)}
 
+      %Task{type: "follow_the_figure"} ->
+        {:ok, assign_task(socket, BeamWeb.FollowTheFigureLive, params, current_user, live_action, difficulty)}
+
       _ ->
         {:ok, push_navigate(socket, to: "/tasks")}
     end
@@ -41,6 +44,7 @@ defmodule BeamWeb.DynamicTaskLive do
       live_view: live_view,
       params: params,
       current_user: current_user,
+      full_screen?: true,
       live_action: live_action,
       difficulty: difficulty
     )
@@ -59,7 +63,8 @@ defmodule BeamWeb.DynamicTaskLive do
         "task_id" => @params["task_id"],
         "live_action" => Atom.to_string(@live_action),
         "difficulty" => Atom.to_string(@difficulty),
-        "current_user" => @current_user
+        "current_user" => @current_user,
+        "full_screen?" => true
       }
     )}
     """

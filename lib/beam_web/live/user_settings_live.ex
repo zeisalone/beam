@@ -24,6 +24,7 @@ defmodule BeamWeb.UserSettingsLive do
       |> assign(:pending_image, nil)
       |> assign(:custom_images, Enum.uniq([user.profile_image | (user.custom_images || [])]))
       |> assign(:selected_image, user.profile_image)
+      |> assign(:full_screen?, false)
       |> assign(:confirm_delete_image, nil)
 
     {:ok, socket}

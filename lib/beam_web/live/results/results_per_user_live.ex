@@ -30,6 +30,7 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
        user_id: user_id,
        user_name: user_name,
        tasks: tasks,
+       full_screen?: false,
        selected_task_id: nil,
        selected_result_type: nil,
        sort_order: :desc

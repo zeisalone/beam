@@ -12,6 +12,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty", "facil") |> maybe_to_atom()
+    full_screen = Map.get(session, "full_screen?", true)
 
     {interval, blank_interval} = interval_settings(difficulty)
 
@@ -39,6 +40,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
          blank_interval: blank_interval,
          current_number: nil,
          current_color: :black,
+         full_screen?: full_screen,
          reaction_start_time: nil
        )}
     else

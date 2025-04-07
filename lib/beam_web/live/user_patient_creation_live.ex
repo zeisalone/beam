@@ -46,7 +46,7 @@ defmodule BeamWeb.UserPatientCreationLive do
     changeset = Accounts.change_user_registration(%User{})
     form = to_form(changeset, as: "user")
 
-    {:ok, assign(socket, terapeutas: terapeutas, form: form, patient_created: false)}
+    {:ok, assign(socket, terapeutas: terapeutas, form: form, full_screen?: false, patient_created: false)}
   end
 
   def handle_event("validate", %{"user" => user_params}, socket) do

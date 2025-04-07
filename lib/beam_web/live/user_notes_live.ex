@@ -21,6 +21,7 @@ defmodule BeamWeb.UserNotesLive do
                patient: patient,
                therapist_id: therapist.therapist_id,
                notes: notes,
+               full_screen?: false,
                new_note: ""
              )}
           else

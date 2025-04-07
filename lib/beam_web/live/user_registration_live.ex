@@ -65,6 +65,7 @@ defmodule BeamWeb.UserRegistrationLive do
         trigger_submit: false,
         check_errors: false,
         user_created: false,
+        full_screen?: false,
         created_user: nil
       )
       |> assign_form(changeset)
