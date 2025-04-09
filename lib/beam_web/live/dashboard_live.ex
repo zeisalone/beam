@@ -24,8 +24,14 @@ defmodule BeamWeb.DashboardLive do
        search_terapeutas: "",
        only_mine: false,
        full_screen?: false,
+       open_help: false,
        current_user: current_user
      )}
+  end
+
+  @impl true
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
 
   @impl true
@@ -164,6 +170,17 @@ defmodule BeamWeb.DashboardLive do
         </.table>
       </div>
     </div>
+     <.help_button open={@open_help}>
+        <:help>
+          <p><strong>1.</strong> Podemos ver neste menu os todos os terapeutas e pacientes da aplicação.</p>
+        </:help>
+        <:help>
+          <p><strong>2.</strong> Ao carregar em <em>Novo Paciente</em> podes adicionar um novo paciente à aplicação.</p>
+        </:help>
+        <:help>
+          <p><strong>3.</strong> Ao carregar no nome de um paciente és levado para o seu perfil, onde podes consultar os seus dados e adicionar apontamentos.</p>
+        </:help>
+      </.help_button>
     """
   end
 end

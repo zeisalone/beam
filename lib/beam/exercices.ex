@@ -250,4 +250,38 @@ defmodule Beam.Exercices do
     })
     |> Repo.insert()
   end
+
+  def count_exercises_this_week do
+    start_of_week =
+      Date.beginning_of_week(Date.utc_today())
+      |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+
+    query =
+      from r in Beam.Exercices.Result,
+        join: u in Beam.Accounts.User,
+        on: r.user_id == u.id,
+        where: r.inserted_at >= ^start_of_week and u.type == "Paciente"
+
+    Repo.aggregate(query, :count)
+  end
+
+  def count_active_patients_this_week(therapist_user_id) do
+    start_of_week =
+      Date.beginning_of_week(Date.utc_today())
+      |> DateTime.new!(~T[00:00:00], "Etc/UTC")
+
+    query =
+      from r in Beam.Exercices.Result,
+        join: p in Beam.Accounts.Patient,
+        on: r.user_id == p.user_id,
+        where: r.inserted_at >= ^start_of_week,
+        join: t in Beam.Accounts.Therapist,
+        on: p.therapist_id == t.therapist_id,
+        where: t.user_id == ^therapist_user_id,
+        select: p.patient_id,
+        distinct: true
+
+    Repo.aggregate(query, :count)
+  end
+
 end

@@ -673,4 +673,60 @@ defmodule BeamWeb.CoreComponents do
   def translate_errors(errors, field) when is_list(errors) do
     for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
+
+  @doc """
+Renders a floating help button that expands into a scrollable help panel.
+
+## Example
+
+    <.help_button>
+      <:help>
+        <p><strong>1.</strong> Aqui explicamos algo.</p>
+      </:help>
+      <:help>
+        <p><strong>2.</strong> Outro ponto de ajuda.</p>
+      </:help>
+      ...
+    </.help_button>
+"""
+attr :open, :boolean, default: false
+slot :help, required: true
+  def help_button(assigns) do
+    assigns = assign_new(assigns, :open, fn -> false end)
+
+    ~H"""
+    <div class="help-button-fixed z-50" id="help-button-root">
+      <div class="relative">
+        <button
+          phx-click="toggle_help"
+          class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-lg transition"
+          aria-label="Ajuda"
+        >
+          ?
+        </button>
+
+        <div
+          :if={@open}
+          class="absolute bottom-16 right-0 w-80 bg-white rounded-lg shadow-xl border"
+        >
+          <div class="flex flex-col max-h-[60vh]">
+            <div class="flex justify-between items-center p-4 border-b sticky top-0 bg-white z-10">
+              <h2 class="text-sm font-semibold text-zinc-700">Ajuda</h2>
+              <button phx-click="toggle_help" class="text-zinc-500 hover:text-zinc-700 text-lg font-bold">&times;</button>
+            </div>
+
+            <div class="overflow-y-auto p-4 space-y-2 text-sm text-zinc-700">
+              <%= for {block, i} <- Enum.with_index(@help) do %>
+                <div>
+                  <%= render_slot(block) %>
+                  <hr :if={i < length(@help) - 1} class="my-2 border-zinc-200" />
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 end

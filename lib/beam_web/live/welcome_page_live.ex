@@ -7,9 +7,15 @@ defmodule BeamWeb.WelcomePageLive do
     {:ok,
      assign(socket,
        full_screen?: false,
-       user_name: current_user.name
+       user_name: current_user.name,
+       open_help: false
      )}
   end
+
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
+  end
+
 
   def render(assigns) do
     ~H"""
@@ -49,6 +55,37 @@ defmodule BeamWeb.WelcomePageLive do
         </.link>
       </div>
     </div>
+    <.help_button open={@open_help}>
+      <:help>
+        <p><strong>1.</strong> Bem-vindo ao BEAM! Este menu vai aparecer em algumas das páginas para te ajudar e dar dicas.</p>
+      </:help>
+      <:help>
+        <p><strong>2.</strong> O Header acima estará presente ao longo da aplicação e é a principal forma de navegação da mesma.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>3.</strong> No botão <em>Ver Tarefas</em> podes aceder às atividades disponíveis para treinar.</p>
+      </:help>
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>4.</strong> Em <em>Ver Resultados</em> podes consultar o teu desempenho.</p>
+      </:help>
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>5.</strong> Em <em>Ver Perfil</em> podes alterar informações pessoais como a tua imagem ou palavra-passe.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>3.</strong> Em <em>Ver Tarefas</em> podes experimentar as atividades disponíveis ou preparar testes.</p>
+      </:help>
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>4.</strong> Em <em>Ver Resultados</em> tens acesso às estatísticas dos teus pacientes.</p>
+      </:help>
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>5.</strong> Em <em>Ver Perfil</em> podes gerir os teus dados de utilizador.</p>
+      </:help>
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>6.</strong> A Pagina <em>Dashboard</em> contém uma lista dos pacientes e dos terapeutas da aplicação. Também é lá que podes adicionar pacientes.</p>
+      </:help>
+    </.help_button>
     """
   end
 end

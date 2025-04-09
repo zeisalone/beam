@@ -18,9 +18,15 @@ defmodule BeamWeb.UserProfileLive do
            current_user: user,
            email: email,
            full_screen?: false,
-           age: age
+           age: age,
+           open_help: false
          )}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
 
   @impl true
@@ -74,6 +80,28 @@ defmodule BeamWeb.UserProfileLive do
         </div>
       </div>
     </div>
+
+    <.help_button open={@open_help}>
+      <:help>
+        <p><strong>1.</strong> Esta é a tua página de perfil. Aqui podes ver e editar as tuas informações.</p>
+      </:help>
+
+      <:help>
+        <p><strong>2.</strong> No botão <em>Editar Perfil</em> podes alterar dados como o nome, imagem de perfil ou palavra-passe.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>3.</strong> O botão <em>Ver Resultados</em> permite-te consultar o teu desempenho nas atividades.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>3.</strong> O botão <em>Ver Resultados</em> leva-te para a página com os resultados dos teus pacientes.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>4.</strong> O botão <em>Ver Pacientes</em> permite-te aceder à dashboard com a lista completa de pacientes.</p>
+      </:help>
+    </.help_button>
     """
   end
 end

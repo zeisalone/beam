@@ -13,7 +13,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
       tasks = Exercices.list_tasks()
 
       {:ok,
-       assign(socket, show_modal: false, full_screen?: false, show_task_modal: false, patients: patients, tasks: tasks)}
+       assign(socket, show_modal: false, full_screen?: false, show_task_modal: false, patients: patients, tasks: tasks, open_help: false)}
     end
   end
 
@@ -47,21 +47,30 @@ defmodule BeamWeb.Results.ResultsMainLive do
     {:noreply, push_navigate(socket, to: ~p"/results/per_exercise?task_id=#{task_id}")}
   end
 
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
+  end
+
   def render(assigns) do
     ~H"""
     <div class="p-10 text-center">
-      <h1 class="text-3xl font-bold mb-6">Resultados</h1>
-      <div class="space-y-4">
-        <button phx-click="open_modal" class="px-4 py-2 bg-blue-500 text-white rounded">
-          Ver Resultados por Utilizador
-        </button>
-        <button phx-click="open_task_modal" class="px-4 py-2 bg-green-500 text-white rounded">
-          Ver Resultados por Exercício
-        </button>
+      <div class="mx-auto max-w-md bg-white border border-gray-300 rounded-xl shadow-lg p-6">
+      <h2 class="text-3xl font-bold mb-6">Resultados</h2>
+        <div class="flex flex-col space-y-4 items-center">
+          <.link navigate={~p"/results/general"} class="w-full rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
+            Ver Estatísticas Gerais
+          </.link>
+          <.button phx-click="open_modal" class="w-full">
+            Ver Resultados por Utilizador
+          </.button>
+          <.button phx-click="open_task_modal" class="w-full">
+            Ver Resultados por Exercício
+          </.button>
+        </div>
       </div>
 
       <%= if @show_modal do %>
-        <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+        <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
           <div class="bg-white p-6 rounded shadow-lg">
             <h2 class="text-xl font-bold mb-4">Selecionar Utilizador</h2>
             <form phx-submit="select_patient">
@@ -71,12 +80,10 @@ defmodule BeamWeb.Results.ResultsMainLive do
                 <% end %>
               </select>
               <div class="mt-4 flex justify-end space-x-2">
-                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded">
-                  Selecionar
-                </button>
-                <button type="button" phx-click="close_modal" class="px-4 py-2 bg-gray-300 rounded">
+                <.button type="submit">Selecionar</.button>
+                <.button type="button" phx-click="close_modal" class="bg-red-600 text-black hover:bg-red-700">
                   Cancelar
-                </button>
+                </.button>
               </div>
             </form>
           </div>
@@ -84,7 +91,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
       <% end %>
 
       <%= if @show_task_modal do %>
-        <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+        <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
           <div class="bg-white p-6 rounded shadow-lg">
             <h2 class="text-xl font-bold mb-4">Selecionar Exercício</h2>
             <form phx-submit="select_task">
@@ -94,21 +101,30 @@ defmodule BeamWeb.Results.ResultsMainLive do
                 <% end %>
               </select>
               <div class="mt-4 flex justify-end space-x-2">
-                <button type="submit" class="px-4 py-2 bg-green-500 text-white rounded">
-                  Selecionar
-                </button>
-                <button
-                  type="button"
-                  phx-click="close_task_modal"
-                  class="px-4 py-2 bg-gray-300 rounded"
-                >
+                <.button type="submit">Selecionar</.button>
+                <.button type="button" phx-click="close_task_modal" class="bg-red-600 text-black hover:bg-red-700">
                   Cancelar
-                </button>
+                </.button>
               </div>
             </form>
           </div>
         </div>
       <% end %>
+
+      <.help_button open={@open_help}>
+        <:help>
+          <p><strong>1.</strong> Nesta página podes consultar os resultados de pacientes ou de exercícios realizados na aplicação.</p>
+        </:help>
+        <:help>
+          <p><strong>2.</strong> O botão <em>Ver Resultados por Utilizador</em> permite-te escolher um paciente e ver o desempenho dele.</p>
+        </:help>
+        <:help>
+          <p><strong>3.</strong> O botão <em>Ver Resultados por Exercício</em> mostra-te o desempenho agregado por tarefa.</p>
+        </:help>
+        <:help>
+          <p><strong>4.</strong> Em ambos os modos, podes aplicar filtros para obter resultados mais detalhados.</p>
+        </:help>
+      </.help_button>
     </div>
     """
   end

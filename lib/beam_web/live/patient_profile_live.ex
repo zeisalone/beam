@@ -20,9 +20,15 @@ defmodule BeamWeb.PatientProfileLive do
            patient_id: patient.id,
            age: age,
            full_screen?: false,
+           open_help: false,
            email: email
          )}
     end
+  end
+
+  @impl true
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
 
   @impl true
@@ -68,6 +74,14 @@ defmodule BeamWeb.PatientProfileLive do
         </div>
       </div>
     </div>
+    <.help_button open={@open_help}>
+        <:help>
+          <p><strong>1.</strong> Neste menu podes aceder diretamente aos resultados deste paciente.</p>
+        </:help>
+        <:help>
+          <p><strong>2.</strong> Com recurso ao botão <em>Notas</em> poderás adicionar notas para registar o progresso deste paciente.</p>
+        </:help>
+      </.help_button>
     """
   end
 end

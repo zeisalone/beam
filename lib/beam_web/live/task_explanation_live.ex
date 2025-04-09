@@ -28,6 +28,7 @@ defmodule BeamWeb.TaskExplanationLive do
        selected_patient: nil,
        show_difficulty: false,
        full_screen?: false,
+       open_help: false,
        selected_difficulty: nil
      )}
   end
@@ -83,6 +84,18 @@ defmodule BeamWeb.TaskExplanationLive do
     {:noreply, assign(socket, selected_difficulty: difficulty)}
   end
 
+  def handle_event("close_dropdown", _params, socket) do
+    {:noreply, assign(socket, show_dropdown: false)}
+  end
+
+  def handle_event("close_difficulty", _params, socket) do
+    {:noreply, assign(socket, show_difficulty: false)}
+  end
+
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -101,7 +114,7 @@ defmodule BeamWeb.TaskExplanationLive do
             <.button class="w-40 text-white" phx-click="toggle_difficulty">Começar Treino</.button>
 
             <%= if @show_difficulty do %>
-              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48">
+              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48" phx-click-away="close_difficulty">
                 <form phx-change="select_difficulty">
                   <select name="difficulty" class="block w-full p-2 border rounded-md text-gray-700">
                     <option value="">Escolha a dificuldade</option>
@@ -135,7 +148,7 @@ defmodule BeamWeb.TaskExplanationLive do
             <.button class="w-40" phx-click="toggle_dropdown">Recomendar Tarefa</.button>
 
             <%= if @show_dropdown do %>
-              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48">
+              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48" phx-click-away="close_dropdown">
                 <form phx-change="select_patient">
                   <select
                     id="select-patient"
@@ -162,7 +175,7 @@ defmodule BeamWeb.TaskExplanationLive do
           <div class="relative">
             <.button class="w-40 text-white" phx-click="toggle_difficulty">Experimentar Tarefa</.button>
             <%= if @show_difficulty do %>
-              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48">
+              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48" phx-click-away="close_difficulty">
                 <form phx-change="select_difficulty">
                   <select name="difficulty" class="block w-full p-2 border rounded-md text-gray-700">
                     <option value="">Escolha a dificuldade</option>
@@ -195,6 +208,31 @@ defmodule BeamWeb.TaskExplanationLive do
           <%= @task.description %>
         </textarea>
     </div>
+    <.help_button open={@open_help}>
+      <:help>
+        <p><strong>1.</strong> Esta página é a pagina relativa aos exercicios da aplicação.</p>
+      </:help>
+
+      <:help>
+        <p><strong>2.</strong> Lê a descrição com atenção antes de fazeres o exercicio pela primeira vez.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>3.</strong> No botão <em>Começar Treino</em>, podes iniciar a tarefa em modo treino escolhendo a dificuldade que preferires, ou aquela que o teu terapeuta recomendar.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>4.</strong> No botão <em>Começar Teste</em>, irás realizar a tarefa em modo teste.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>3.</strong> No botão <em>Experimentar Tarefa</em> podes testar a tarefa em diferentes dificuldades.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Terapeuta"}>
+        <p><strong>4.</strong> No botão <em>Recomendar Tarefa</em> podes recomendar esta tarefa a um dos teus pacientes.</p>
+      </:help>
+    </.help_button>
     """
   end
 end
