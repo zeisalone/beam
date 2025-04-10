@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.ReverseSequence do
+defmodule Beam.Exercices.Tasks.ReverseSequence do
   @moduledoc """
   Tarefa que exibe uma sequência de números e o usuário deve digitá-los na ordem inversa.
   """

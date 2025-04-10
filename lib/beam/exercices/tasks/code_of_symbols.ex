@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.CodeOfSymbols do
+defmodule Beam.Exercices.Tasks.CodeOfSymbols do
   @moduledoc """
   Tarefa que apresenta um código de símbolos (figuras com cores), onde cada símbolo representa um número específico.
   O utilizador deverá preencher uma grelha com os números corretos associados a cada símbolo.

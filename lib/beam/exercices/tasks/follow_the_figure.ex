@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.FollowTheFigure do
+defmodule Beam.Exercices.Tasks.FollowTheFigure do
   @moduledoc """
   Lógica para o exercício "Segue a Forma".
   """
@@ -45,8 +45,8 @@ defmodule Beam.Exercices.FollowTheFigure do
     count =
       case difficulty do
         :facil -> Enum.random(8..12)
-        :medio -> Enum.random(30..60)
-        :dificil -> Enum.random(75..100)
+        :medio -> Enum.random(45..90)
+        :dificil -> Enum.random(90..150)
       end
 
       color_bias =

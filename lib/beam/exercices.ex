@@ -8,7 +8,8 @@ defmodule Beam.Exercices do
   alias Beam.Exercices.{Recommendation, Task, Result, Test, Training}
 
   def list_tasks do
-    Repo.all(Task)
+    from(t in Task, order_by: t.id)
+    |> Repo.all()
   end
 
   def get_task!(id), do: Repo.get!(Task, id)

@@ -6,6 +6,8 @@ defmodule Beam.Exercices.Task do
     field :name, :string
     field :type, :string
     field :description, :string
+    field :image_path, :string
+    field :tags, {:array, :string}, default: []
 
     has_many :trainings, Beam.Exercices.Training
     has_many :tests, Beam.Exercices.Test
@@ -16,7 +18,7 @@ defmodule Beam.Exercices.Task do
   @doc false
   def changeset(task, attrs) do
     task
-    |> cast(attrs, [:name, :type, :description])
+    |> cast(attrs, [:name, :type, :description, :image_path, :tags])
     |> validate_required([:name, :type, :description])
   end
 end

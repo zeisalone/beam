@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.SearchingForAnAnswer do
+defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
   @moduledoc """
   Logic for the Searching for an Answer task.
   """

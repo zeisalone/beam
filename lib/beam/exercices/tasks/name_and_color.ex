@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.NameAndColor do
+defmodule Beam.Exercices.Tasks.NameAndColor do
   @moduledoc """
   Lógica para a tarefa "Nome e Cor".
   """

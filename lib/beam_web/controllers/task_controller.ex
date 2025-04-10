@@ -4,6 +4,18 @@ defmodule BeamWeb.TaskController do
   alias Beam.Exercices
   alias Beam.Exercices.Task
 
+  @tag_colors %{
+    "Memória de Trabalho" => "bg-purple-100 text-purple-700 hover:bg-purple-200",
+    "Atenção Sustentada" => "bg-blue-100 text-blue-700 hover:bg-blue-200",
+    "Velocidade de Reação" => "bg-yellow-100 text-yellow-700 hover:bg-yellow-200",
+    "Atenção Visual" => "bg-green-100 text-green-700 hover:bg-green-200",
+    "Atenção Focada" => "bg-pink-100 text-pink-700 hover:bg-pink-200",
+    "Manipulação Cognitiva" => "bg-indigo-100 text-indigo-700 hover:bg-indigo-200",
+    "Atenção Seletiva" => "bg-lime-100 text-lime-700 hover:bg-lime-200",
+    "Inibição de Resposta" => "bg-red-100 text-red-700 hover:bg-red-200",
+    "Flexibilidade Cognitiva" => "bg-orange-100 text-orange-700 hover:bg-orange-200"
+  }
+
   def index(conn, _params) do
     current_user = conn.assigns.current_user
     tasks = Exercices.list_tasks()
@@ -15,7 +27,11 @@ defmodule BeamWeb.TaskController do
         []
       end
 
-    render(conn, :index, tasks: tasks, unseen_tasks: unseen_tasks)
+    render(conn, :index,
+      tasks: tasks,
+      unseen_tasks: unseen_tasks,
+      tag_colors: @tag_colors
+    )
   end
 
   def new(conn, _params) do

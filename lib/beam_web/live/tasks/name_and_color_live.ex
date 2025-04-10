@@ -1,6 +1,6 @@
-defmodule BeamWeb.NameAndColorLive do
+defmodule BeamWeb.Tasks.NameAndColorLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.NameAndColor
+  alias Beam.Exercices.Tasks.NameAndColor
   alias Beam.Repo
   alias Beam.Exercices.Result
 
@@ -25,7 +25,7 @@ defmodule BeamWeb.NameAndColorLive do
 
     if connected?(socket), do: Process.send_after(self(), :start_intro, 500)
 
-    trials = Beam.Exercices.NameAndColor.generate_trials(@total_trials)
+    trials = Beam.Exercices.Tasks.NameAndColor.generate_trials(@total_trials)
 
     {:ok,
      assign(socket,

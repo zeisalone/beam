@@ -1,6 +1,6 @@
-defmodule BeamWeb.SearchingForAnAnswerLive do
+defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.SearchingForAnAnswer
+  alias Beam.Exercices.Tasks.SearchingForAnAnswer
   alias Beam.Repo
   alias Beam.Exercices.Result
 

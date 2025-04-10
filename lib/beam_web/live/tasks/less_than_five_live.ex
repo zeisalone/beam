@@ -1,6 +1,6 @@
-defmodule BeamWeb.GreaterThanFiveLive do
+defmodule BeamWeb.Tasks.LessThanFiveLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.GreaterThanFive
+  alias Beam.Exercices.Tasks.LessThanFive
   alias Beam.Repo
   alias Beam.Exercices.Result
 
@@ -24,7 +24,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
          current_user: current_user,
          user_id: current_user.id,
          task_id: task_id,
-         sequence: GreaterThanFive.generate_sequence(@total_trials, difficulty),
+         sequence: LessThanFive.generate_sequence(@total_trials, difficulty),
          current_index: -1,
          correct: 0,
          wrong: 0,
@@ -86,7 +86,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
 
     result =
       if socket.assigns.awaiting_response do
-        GreaterThanFive.validate_response(
+        LessThanFive.validate_response(
           false,
           number,
           socket.assigns.interval,
@@ -143,7 +143,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
       number = socket.assigns.current_number
       max_time = socket.assigns.interval
 
-      result = GreaterThanFive.validate_response(true, number, reaction_time, max_time)
+      result = LessThanFive.validate_response(true, number, reaction_time, max_time)
 
       update_counts =
         case result do
@@ -167,7 +167,7 @@ defmodule BeamWeb.GreaterThanFiveLive do
   end
 
   defp save_final_result(socket) do
-    task_id = Beam.Exercices.TaskList.task_id(:greater_than_five)
+    task_id = Beam.Exercices.TaskList.task_id(:less_than_five)
     total_attempts = socket.assigns.correct + socket.assigns.wrong + socket.assigns.omitted
     accuracy = if total_attempts > 0, do: socket.assigns.correct / total_attempts, else: 0.0
 

@@ -1,7 +1,7 @@
-defmodule BeamWeb.CodeOfSymbolsLive do
+defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
   use BeamWeb, :live_view
 
-  alias Beam.Exercices.CodeOfSymbols
+  alias Beam.Exercices.Tasks.CodeOfSymbols
   alias Beam.Repo
   alias Beam.Exercices.Result
 

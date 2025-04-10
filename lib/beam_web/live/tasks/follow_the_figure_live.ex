@@ -1,7 +1,7 @@
-defmodule BeamWeb.FollowTheFigureLive do
+defmodule BeamWeb.Tasks.FollowTheFigureLive do
   use BeamWeb, :live_view
 
-  alias Beam.Exercices.FollowTheFigure
+  alias Beam.Exercices.Tasks.FollowTheFigure
   alias Beam.Exercices.Result
   alias Beam.Repo
 

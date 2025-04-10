@@ -14,25 +14,25 @@ defmodule BeamWeb.DynamicTaskLive do
         {:ok, push_navigate(socket, to: "/tasks")}
 
       %Task{type: "math_operation"} ->
-        {:ok, assign_task(socket, BeamWeb.MathOperationLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.MathOperationLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "searching_for_an_answer"} ->
-        {:ok, assign_task(socket, BeamWeb.SearchingForAnAnswerLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.SearchingForAnAnswerLive, params, current_user, live_action, difficulty)}
 
-      %Task{type: "greater_than_five"} ->
-        {:ok, assign_task(socket, BeamWeb.GreaterThanFiveLive, params, current_user, live_action, difficulty)}
+      %Task{type: "less_than_five"} ->
+        {:ok, assign_task(socket, BeamWeb.Tasks.LessThanFiveLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "reverse_sequence"} ->
-        {:ok, assign_task(socket, BeamWeb.ReverseSequenceLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.ReverseSequenceLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "code_of_symbols"} ->
-        {:ok, assign_task(socket, BeamWeb.CodeOfSymbolsLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.CodeOfSymbolsLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "name_and_color"} ->
-        {:ok, assign_task(socket, BeamWeb.NameAndColorLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.NameAndColorLive, params, current_user, live_action, difficulty)}
 
       %Task{type: "follow_the_figure"} ->
-        {:ok, assign_task(socket, BeamWeb.FollowTheFigureLive, params, current_user, live_action, difficulty)}
+        {:ok, assign_task(socket, BeamWeb.Tasks.FollowTheFigureLive, params, current_user, live_action, difficulty)}
 
       _ ->
         {:ok, push_navigate(socket, to: "/tasks")}

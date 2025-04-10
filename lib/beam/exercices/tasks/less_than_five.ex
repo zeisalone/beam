@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.GreaterThanFive do
+defmodule Beam.Exercices.Tasks.LessThanFive do
   @moduledoc """
   Logic for the Greater Than Five task.
   """

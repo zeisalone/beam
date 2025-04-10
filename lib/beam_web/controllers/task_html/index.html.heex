@@ -1,27 +1,78 @@
-<div class="mx-auto max-w-2xl text-center">
-  <h2 class="text-2xl font-bold mb-4">Exercícios</h2>
+<div class="relative w-screen left-1/2 translate-x-[-50%] max-w-screen-lg p-6">
+  <h2 class="text-2xl font-bold mb-6 text-primary-700">Treinos Cognitivos e de Atenção</h2>
 
-  <table class="w-full border-collapse border border-gray-300">
-    <thead>
-      <tr class="bg-gray-100">
-        <th class="border border-gray-300 px-4 py-2">Nome</th>
-        <th class="border border-gray-300 px-4 py-2"></th>
-      </tr>
-    </thead>
-    <tbody>
-      <%= for task <- @tasks do %>
-        <tr>
-          <td class="border border-gray-300 font-semibold px-4 py-2 text-left relative">
-            <.link navigate={~p"/tasks/#{task.id}"}>{task.name}</.link>
-            <%= if task.id in @unseen_tasks do %>
-              <span class="absolute right-2 top-2 h-3 w-3 bg-green-500 rounded-full"></span>
-            <% end %>
-          </td>
-          <td class="border border-gray-300 px-4 py-2 text-center">
-            <.link navigate={~p"/tasks/#{task.id}"} class="underline">Ver</.link>
-          </td>
+  <div class="overflow-auto rounded-lg border border-gray-200">
+    <table class="w-full text-sm table-fixed">
+      <thead>
+        <tr class="bg-primary-50">
+          <th class="w-12 px-4 py-3 text-left font-semibold">Imagem</th>
+          <th class="w-1/4 px-4 py-3 text-left font-semibold">Exercício</th>
+          <th class="w-2/5 px-4 py-3 text-left font-semibold">Capacidades Treinadas</th>
+          <th class="w-10 px-4 py-3 text-left font-semibold">Ação</th>
         </tr>
-      <% end %>
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        <%= for task <- @tasks do %>
+          <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
+            <td class="px-4 py-4">
+              <div class="w-24 h-14 rounded-lg bg-primary-100 flex items-center justify-center overflow-hidden group">
+                <%= if task.image_path do %>
+                  <img
+                    src={task.image_path}
+                    alt={"Imagem de #{task.name}"}
+                    data-image={task.image_path}
+                    class="w-24 h-10 object-cover group-hover:scale-110 transition-transform cursor-pointer"
+                    onclick="openImageModal(this.dataset.image)"
+                  />
+                <% end %>
+              </div>
+            </td>
+
+            <td class="px-4 py-4 font-medium truncate">
+              <%= task.name %>
+            </td>
+
+            <td class="px-4 py-4">
+              <div class="flex flex-wrap gap-4">
+                <%= for tag <- task.tags do %>
+                  <% color_class = Map.get(@tag_colors, tag, "bg-gray-100 text-gray-700 hover:bg-gray-200") %>
+                  <span class={"px-2 py-1 rounded-full text-xs font-medium transition-colors #{color_class}"}>
+                    <%= tag %>
+                  </span>
+                <% end %>
+              </div>
+            </td>
+
+            <td class="px-4 py-4">
+              <.link navigate={~p"/tasks/#{task.id}"} class="text-primary-600 underline text-md hover:text-primary-700">
+                Ver
+              </.link>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 </div>
+
+<div id="image-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden" onclick="closeImageModal()">
+  <div class="relative" onclick="event.stopPropagation()">
+    <button onclick="closeImageModal()" class="absolute top-2 right-2 text-white text-3xl font-bold">&times;</button>
+    <img id="modal-image" src="" class="max-w-[90vw] max-h-[90vh] rounded shadow-lg" />
+  </div>
+</div>
+
+<%= Phoenix.HTML.raw(~S"""
+<script>
+  function openImageModal(src) {
+    const modal = document.getElementById("image-modal")
+    const img = document.getElementById("modal-image")
+    modal.classList.remove("hidden")
+    img.src = src
+  }
+
+  function closeImageModal() {
+    document.getElementById("image-modal").classList.add("hidden")
+  }
+</script>
+""") %>

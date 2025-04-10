@@ -1,4 +1,4 @@
-defmodule Beam.Exercices.MathOperation do
+defmodule Beam.Exercices.Tasks.MathOperation do
   @moduledoc """
   Lógica para a tarefa de operações matemáticas, com suporte a diferentes dificuldades.
   """

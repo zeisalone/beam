@@ -1,6 +1,6 @@
-defmodule BeamWeb.ReverseSequenceLive do
+defmodule BeamWeb.Tasks.ReverseSequenceLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.ReverseSequence
+  alias Beam.Exercices.Tasks.ReverseSequence
   alias Beam.Repo
   alias Beam.Exercices.Result
 

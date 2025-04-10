@@ -1,6 +1,6 @@
-defmodule BeamWeb.MathOperationLive do
+defmodule BeamWeb.Tasks.MathOperationLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.MathOperation
+  alias Beam.Exercices.Tasks.MathOperation
   alias Beam.Repo
   alias Beam.Exercices.Result
 
