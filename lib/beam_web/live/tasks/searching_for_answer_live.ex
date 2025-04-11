@@ -15,7 +15,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
 
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :facil
+    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
     full_screen = Map.get(session, "full_screen?", true)
 
     if current_user do
