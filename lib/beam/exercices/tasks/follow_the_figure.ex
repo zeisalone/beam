@@ -45,7 +45,7 @@ defmodule Beam.Exercices.Tasks.FollowTheFigure do
     count =
       case difficulty do
         :facil -> Enum.random(8..12)
-        :medio -> Enum.random(45..90)
+        :medio -> Enum.random(30..70)
         :dificil -> Enum.random(90..150)
       end
 
@@ -59,7 +59,7 @@ defmodule Beam.Exercices.Tasks.FollowTheFigure do
             )
 
           :medio ->
-            percent = Enum.random(40..50) / 100
+            percent = Enum.random(30..45) / 100
             same_color_count = round(count * percent)
             other_color_count = count - same_color_count
 

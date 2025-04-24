@@ -4,7 +4,6 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @default_target %{shape: "heart", color: "red", position: "up"}
   @phase_duration 3000
   @cycle_duration 2000
   @total_phases 20
@@ -19,9 +18,9 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     full_screen = Map.get(session, "full_screen?", true)
 
     if current_user do
-      if connected?(socket), do: Process.send_after(self(), :start_intro, 0)
+      if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
 
-      target = @default_target
+      target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
 
       {:ok,
        assign(socket,
@@ -44,7 +43,8 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
          live_action: live_action,
          difficulty: difficulty,
          full_screen?: full_screen,
-         show_intro: true
+         preparing_task: true,
+         show_intro: false
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
@@ -54,6 +54,19 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(value), do: value
+
+  def handle_info(:prepare_task, socket) do
+    target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
+
+    Process.send_after(self(), :start_intro, 1000)
+
+    {:noreply,
+     assign(socket,
+       target: target,
+       preparing_task: false,
+       show_intro: true
+     )}
+  end
 
   def handle_info(:start_intro, socket) do
     Process.send_after(self(), :start_phase, @intro_duration)
@@ -215,33 +228,39 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
       phx-window-keydown="key_pressed"
       phx-capture-keydown
     >
-      <%= if @calculating_results do %>
-        <p class="text-2xl font-bold text-gray-800">A calcular resultados...</p>
+      <%= if @preparing_task do %>
+        <div class="w-full h-full flex items-center justify-center bg-white">
+          <p class="text-xl animate-pulse text-gray-700">A preparar tarefa...</p>
+        </div>
       <% else %>
-        <%= if @show_intro do %>
-          <div class="flex flex-col items-center justify-center w-full h-full bg-white">
-            <p class="text-2xl font-bold text-gray-800 mb-4">A figura que tens de seguir</p>
-            <div class="w-32 h-32 flex items-center justify-center border-4 border-gray-600 rounded-full">
-              <div class="w-24 h-24">
-                {raw(shape_svg(@target.shape, @target.color))}
+        <%= if @calculating_results do %>
+          <p class="text-2xl font-bold text-gray-800">A calcular resultados...</p>
+        <% else %>
+          <%= if @show_intro do %>
+            <div class="flex flex-col items-center justify-center w-full h-full bg-white">
+              <p class="text-2xl font-bold text-gray-800 mb-4">A figura que tens de seguir</p>
+              <div class="w-32 h-32 flex items-center justify-center border-4 border-gray-600 rounded-full">
+                <div class="w-24 h-24">
+                  <%= raw(shape_svg(@target.shape, @target.color)) %>
+                </div>
+              </div>
+              <p class="text-xl font-semibold mt-2 text-gray-700">
+                Target: <span class={"#{tailwind_color(@target.color)}"}><%= @target.shape %></span>
+              </p>
+            </div>
+          <% else %>
+            <div class="relative flex items-center justify-center w-full h-full bg-white">
+              <div class="relative flex items-center justify-center w-[85vw] h-[85vh] border-[20px] border-gray-600">
+                <%= for %{position: position, shape: shape, color: color} <- @phase do %>
+                  <div class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center #{tailwind_color(color)} rounded-full bg-white border-4 border-gray-600"}>
+                    <div class="w-[75%] h-[75%] flex items-center justify-center">
+                      <%= raw(shape_svg(shape, color)) %>
+                    </div>
+                  </div>
+                <% end %>
               </div>
             </div>
-            <p class="text-xl font-semibold mt-2 text-gray-700">
-              Target: <span class={"#{tailwind_color(@target.color)}"}><%= @target.shape %></span>
-            </p>
-          </div>
-        <% else %>
-          <div class="relative flex items-center justify-center w-full h-full bg-white">
-            <div class="relative flex items-center justify-center w-[85vw] h-[85vh] border-[20px] border-gray-600">
-              <%= for %{position: position, shape: shape, color: color} <- @phase do %>
-                <div class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center #{tailwind_color(color)} rounded-full bg-white border-4 border-gray-600"}>
-                  <div class="w-[75%] h-[75%] flex items-center justify-center">
-                    {raw(shape_svg(shape, color))}
-                  </div>
-                </div>
-              <% end %>
-            </div>
-          </div>
+          <% end %>
         <% end %>
       <% end %>
     </div>

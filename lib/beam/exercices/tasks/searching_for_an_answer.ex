@@ -55,7 +55,7 @@ defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
         }
 
       :medio ->
-        case Enum.random([:same_shape_diff_color, :same_color_diff_shape, :completely_different]) do
+        case Enum.random([:same_color_diff_shape, :same_color_diff_shape, :same_shape_diff_color, :completely_different]) do
           :same_shape_diff_color ->
             %{
               shape: target.shape,

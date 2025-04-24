@@ -209,27 +209,15 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
                 <% shape = shape_map.shape %>
                 <% color = shape_map.color %>
                 <% layout = Map.get(shape_map, :layout, :random) %>
+                <% top = if layout == :center_block, do: 30 + div(index, 3) * 12, else: :rand.uniform(90) %>
+                <% left = if layout == :center_block, do: 30 + rem(index, 3) * 12, else: :rand.uniform(85) %>
 
-                <button
-                  phx-click="select"
-                  phx-value-shape={shape}
-                  phx-value-color={color}
-                  class={"w-16 h-16 hover:scale-110 transition-transform animate-floating animate-delay-#{rem(index * 2, 10)}s " <>
-                        if layout == :center_block, do: "absolute", else: "absolute"}
-                  style={
-                    if layout == :center_block do
-                      top = 30 + div(index, 3) * 12
-                      left = 30 + rem(index, 3) * 12
-                      "top: #{top}%; left: #{left}%;"
-                    else
-                      "top: #{:rand.uniform(90)}%; left: #{:rand.uniform(85)}%;"
-                    end
-                  }
+                <div
+                  class={"absolute animate-floating animate-delay-#{rem(index * 2, 10)}s"}
+                  style={"top: #{top}%; left: #{left}%; width: 64px; height: 64px;"}
                 >
-                  <div class="w-full h-full pointer-events-none">
-                    <%= raw(shape_svg(shape, color)) %>
-                  </div>
-                </button>
+                  <%= raw(shape_svg(shape, color)) %>
+                </div>
               <% end %>
             </div>
 
@@ -277,28 +265,36 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
     """
   end
 
-  defp shape_svg(nil, _), do: ""
-  defp shape_svg(_, nil), do: ""
+  defp shape_svg(shape, color, attrs \\ %{})
 
-  defp shape_svg(shape, color) do
+  defp shape_svg(nil, _, _), do: ""
+  defp shape_svg(_, nil, _), do: ""
+
+  defp shape_svg(shape, color, attrs) do
     file_path = Path.join(:code.priv_dir(:beam), "static/images/#{shape}.svg")
 
     case File.read(file_path) do
       {:ok, svg_content} ->
+        attr_str =
+          Enum.map(attrs, fn {k, v} -> "#{k}=\"#{v}\"" end)
+          |> Enum.join(" ")
+
         svg_content
         |> String.replace(~r/fill=["']#?[0-9a-fA-F]*["']/, "")
+        |> String.replace(~r/class=["'].*?["']/, "")
         |> String.replace(
           "<svg",
-          "<svg class=\"w-full h-full fill-current #{tailwind_color(color)} pointer-events-none\""
+          "<svg #{attr_str} class=\"w-16 h-16 fill-current #{tailwind_color(color)}\" style=\"pointer-events: none;\""
         )
         |> String.replace(
-          ~r/<path(.*?)>/,
-          "<path\\1 pointer-events=\"auto\">"
+          ~r/<(path|polygon|circle|rect|ellipse|line|polyline)([^>]*)>/,
+          "<\\1\\2 pointer-events=\"auto\" phx-click=\"select\" phx-value-shape=\"#{shape}\" phx-value-color=\"#{color}\" />"
         )
 
       {:error, _} -> "<!-- SVG not found -->"
     end
   end
+
 
   defp tailwind_color("red"), do: "text-red-600"
   defp tailwind_color("blue"), do: "text-blue-500"

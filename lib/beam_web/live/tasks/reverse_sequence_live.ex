@@ -10,22 +10,19 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
-
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
 
     if current_user do
-      sequence = ReverseSequence.generate_sequence(difficulty)
-
-      if connected?(socket), do: Process.send_after(self(), :hide_sequence, @sequence_duration)
+      if connected?(socket), do: Process.send_after(self(), :start_round, 500)
 
       {:ok,
        assign(socket,
          current_user: current_user,
          user_id: current_user.id,
          task_id: task_id,
-         sequence: sequence,
+         sequence: [],
          user_input: [],
          correct: 0,
          wrong: 0,
@@ -36,9 +33,10 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          timeout_ref: nil,
          live_action: live_action,
          difficulty: difficulty,
-         show_sequence: true,
+         show_sequence: false,
          full_screen?: true,
-         game_finished: false
+         game_finished: false,
+         preparing: true
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
@@ -52,6 +50,20 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
   def handle_info(:hide_sequence, socket) do
     timeout_ref = Process.send_after(self(), :timeout, @response_timeout)
     {:noreply, assign(socket, show_sequence: false, start_time: System.monotonic_time(), timeout_ref: timeout_ref)}
+  end
+
+  def handle_info(:start_round, socket) do
+    sequence = ReverseSequence.generate_sequence(socket.assigns.difficulty)
+    Process.send_after(self(), :hide_sequence, @sequence_duration)
+
+    {:noreply,
+     assign(socket,
+       preparing: false,
+       show_sequence: true,
+       sequence: sequence,
+       user_input: List.duplicate("", length(sequence)),
+       timeout_ref: nil
+     )}
   end
 
   def handle_info(:timeout, socket) do
@@ -234,27 +246,32 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       <%= if @game_finished do %>
         <p class="text-2xl font-bold text-gray-800">A calcular resultados...</p>
       <% else %>
-        <%= if @show_sequence do %>
-          <p class="text-4xl font-bold text-gray-800">
-            <%= Enum.join(@sequence, " ") %>
-          </p>
+        <%= if @preparing do %>
+          <p class="text-2xl font-bold text-gray-800 animate-pulse">A preparar exercício...</p>
         <% else %>
-          <form phx-submit="submit" phx-change="update_input">
-            <div class="flex space-x-2">
-              <%= for {_, i} <- Enum.with_index(@sequence) do %>
-                <input
-                  type="text"
-                  name={"numbers[#{i}]"}
-                  inputmode="numeric"
-                  pattern="[0-9]"
-                  maxlength="1"
-                  class="w-12 h-12 text-center border border-gray-400 rounded-md"
-                  value={Enum.at(@user_input, i) || ""}
-                />
-              <% end %>
-            </div>
-            <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md">Enviar</button>
-          </form>
+          <%= if @show_sequence do %>
+            <p class="text-4xl font-bold text-gray-800">
+              <%= Enum.join(@sequence, " ") %>
+            </p>
+          <% else %>
+            <form phx-submit="submit" phx-change="update_input">
+              <div class="flex space-x-2">
+                <%= for {_, i} <- Enum.with_index(@sequence) do %>
+                  <input
+                    type="text"
+                    name={"numbers[#{i}]"}
+
+                    inputmode="numeric"
+                    pattern="[0-9]"
+                    maxlength="1"
+                    class="w-12 h-12 text-center border border-gray-400 rounded-md"
+                    value={Enum.at(@user_input, i) || ""}
+                  />
+                <% end %>
+              </div>
+              <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded-md">Enviar</button>
+            </form>
+          <% end %>
         <% end %>
       <% end %>
     </div>
