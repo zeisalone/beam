@@ -34,6 +34,9 @@ defmodule BeamWeb.DynamicTaskLive do
       %Task{type: "follow_the_figure"} ->
         {:ok, assign_task(socket, BeamWeb.Tasks.FollowTheFigureLive, params, current_user, live_action, difficulty)}
 
+      %Task{type: "simon"} ->
+        {:ok, assign_task(socket, BeamWeb.Tasks.SimonLive, params, current_user, live_action, difficulty)}
+
       _ ->
         {:ok, push_navigate(socket, to: "/tasks")}
     end

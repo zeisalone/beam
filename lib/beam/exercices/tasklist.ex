@@ -8,7 +8,8 @@ defmodule Beam.Exercices.TaskList do
     reverse_sequence: 4,
     code_of_symbols: 5,
     name_and_color: 6,
-    follow_the_figure: 7
+    follow_the_figure: 7,
+    simon: 8
   }
 
   def task_id(:math_operation), do: Map.get(@task_mapping, :math_operation)
@@ -18,4 +19,5 @@ defmodule Beam.Exercices.TaskList do
   def task_id(:code_of_symbols), do: Map.get(@task_mapping, :code_of_symbols)
   def task_id(:name_and_color), do: Map.get(@task_mapping, :name_and_color)
   def task_id(:follow_the_figure), do: Map.get(@task_mapping, :follow_the_figure)
+  def task_id(:simon), do: Map.get(@task_mapping, :simon)
 end

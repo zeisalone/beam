@@ -8,15 +8,50 @@
       </div>
       <ul class="relative z-10 flex items-center gap-4">
         <%= if @current_user do %>
-          <li class="text-[0.8125rem] font-bold leading-6 text-zinc-900">
+          <li class="flex items-center gap-2 text-[0.8125rem] font-bold leading-6 text-zinc-900 relative">
             {@current_user.name}
+            <%= if @current_user.type == "Paciente" do %>
+              <button id="notification-bell" class="relative focus:outline-none p-1">
+                <img src="/images/bell.svg" alt="Notificações" class="h-5 w-5" />
+                <%= if Beam.Exercices.list_unseen_recommendations(@current_user.id) |> Enum.any?() do %>
+                  <span class="absolute top-0 right-0 h-2 w-2 bg-green-500 rounded-full border-2 border-white"></span>
+                <% end %>
+              </button>
+
+              <div id="notification-dropdown" class="hidden absolute right-0 top-full mt-2 w-72 bg-white border rounded shadow-lg z-50">
+                <div class="p-4 text-sm text-gray-700">
+                  <p class="font-semibold mb-2">Recomendações por ver:</p>
+                  <ul class="space-y-2">
+                    <%= for rec <- Beam.Exercices.list_unseen_recommendations_with_info(@current_user.id) do %>
+                      <li class="border-b pb-2 flex justify-between items-center">
+                        <div>
+                          <div><strong><%= rec.task_name %></strong></div>
+                          <div class="text-gray-500 text-xs">
+                            <%= if rec.type == :treino do %>
+                              Treino (<%= rec.difficulty %>)
+                            <% else %>
+                              Teste
+                            <% end %>
+                          </div>
+                        </div>
+                        <.link navigate={~p"/tasks/#{rec.task_id}"} class="ml-2 text-blue-500 text-xs font-semibold hover:underline">
+                          Ver
+                        </.link>
+                      </li>
+                    <% end %>
+                  </ul>                  
+                </div>
+              </div>
+            <% end %>
           </li>
+
           <li>
             <.link href={~p"/users/profile"} class="text-sm font-semibold hover:text-zinc-700">Perfil</.link>
           </li>
           <li>
             <.link href={~p"/tasks"} class="text-sm font-semibold hover:text-zinc-700">Tarefas</.link>
           </li>
+
           <%= if @current_user.type in ["Terapeuta", "Admin"] do %>
             <li>
               <.link href={~p"/dashboard"} class="text-sm font-semibold hover:text-zinc-700">Dashboard</.link>
@@ -25,6 +60,7 @@
               <.link href={~p"/results"} class="text-sm font-semibold hover:text-zinc-700">Resultados</.link>
             </li>
           <% end %>
+
           <li>
             <.link href={~p"/users/log_out"} method="delete" class="text-sm font-semibold hover:text-zinc-700">Log out</.link>
           </li>
@@ -40,6 +76,26 @@
     </div>
   </header>
 <% end %>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const bell = document.getElementById("notification-bell");
+    const dropdown = document.getElementById("notification-dropdown");
+
+    if (bell && dropdown) {
+      bell.addEventListener("click", function (e) {
+        e.stopPropagation();
+        dropdown.classList.toggle("hidden");
+      });
+
+      document.addEventListener("click", function (e) {
+        if (!dropdown.contains(e.target) && !bell.contains(e.target)) {
+          dropdown.classList.add("hidden");
+        }
+      });
+    }
+  });
+</script>
 
 <main class={"py-2 #{unless @full_screen?, do: "px-4"}"}>
   <div class={"w-full #{unless @full_screen?, do: "max-w-2xl mx-auto"}"}>

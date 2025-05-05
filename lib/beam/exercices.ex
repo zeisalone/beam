@@ -151,17 +151,34 @@ defmodule Beam.Exercices do
     end)
   end
 
-  def recommend_task(%{task_id: task_id, patient_id: patient_id, therapist_id: therapist_id}) do
-    recommendation =
-      %Recommendation{}
-      |> Recommendation.changeset(%{
-        task_id: task_id,
-        patient_id: patient_id,
-        therapist_id: therapist_id
-      })
-      |> Repo.insert()
+  def recommend_task(%{
+    task_id: task_id,
+    patient_id: patient_id,
+    therapist_id: therapist_id,
+    type: type,
+    difficulty: difficulty
+  }) do
+  ecto_type = case type do
+    "training" -> :treino
+    "test" -> :teste
+  end
 
-    recommendation
+  ecto_difficulty =
+    if ecto_type == :treino do
+      difficulty && String.to_existing_atom(difficulty)
+    else
+      nil
+    end
+
+  %Recommendation{}
+  |> Recommendation.changeset(%{
+    task_id: task_id,
+    patient_id: patient_id,
+    therapist_id: therapist_id,
+    type: ecto_type,
+    difficulty: ecto_difficulty
+  })
+  |> Repo.insert()
   end
 
   def list_unseen_recommendations(user_id) do
@@ -180,6 +197,25 @@ defmodule Beam.Exercices do
         unseen
     end
   end
+
+  def list_unseen_recommendations_with_info(user_id) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> []
+      patient ->
+        Repo.all(
+          from r in Beam.Exercices.Recommendation,
+            where: r.patient_id == ^patient.patient_id and r.seen == false,
+            join: t in Beam.Exercices.Task, on: r.task_id == t.id,
+            select: %{
+              task_id: t.id,
+              task_name: t.name,
+              type: r.type,
+              difficulty: r.difficulty
+            }
+        )
+    end
+  end
+
 
   def mark_recommendation_as_seen(task_id, user_id) do
     case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do

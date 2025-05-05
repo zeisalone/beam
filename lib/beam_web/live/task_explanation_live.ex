@@ -27,6 +27,7 @@ defmodule BeamWeb.TaskExplanationLive do
        show_dropdown: false,
        selected_patient: nil,
        show_difficulty: false,
+       selected_type: nil,
        full_screen?: false,
        open_help: false,
        selected_difficulty: nil
@@ -58,7 +59,9 @@ defmodule BeamWeb.TaskExplanationLive do
             case Exercices.recommend_task(%{
                    task_id: socket.assigns.task.id,
                    patient_id: selected_patient_id,
-                   therapist_id: therapist.therapist_id
+                   therapist_id: therapist.therapist_id,
+                   type: socket.assigns.selected_type,
+                   difficulty: socket.assigns.selected_difficulty
                  }) do
               {:ok, _recommendation} ->
                 {:noreply,
@@ -73,6 +76,16 @@ defmodule BeamWeb.TaskExplanationLive do
         end
     end
   end
+
+  @impl true
+def handle_event("update_recommendation", params, socket) do
+  {:noreply,
+   assign(socket,
+     selected_patient: Map.get(params, "patient_id", socket.assigns.selected_patient),
+     selected_type: Map.get(params, "type", socket.assigns.selected_type),
+     selected_difficulty: Map.get(params, "difficulty", socket.assigns.selected_difficulty)
+   )}
+end
 
   @impl true
   def handle_event("toggle_difficulty", _params, socket) do
@@ -94,6 +107,10 @@ defmodule BeamWeb.TaskExplanationLive do
 
   def handle_event("toggle_help", _, socket) do
     {:noreply, update(socket, :open_help, fn open -> !open end)}
+  end
+
+  def handle_event("select_type", %{"type" => type}, socket) do
+    {:noreply, assign(socket, selected_type: type)}
   end
 
   @impl true
@@ -148,24 +165,40 @@ defmodule BeamWeb.TaskExplanationLive do
             <.button class="w-40" phx-click="toggle_dropdown">Recomendar Tarefa</.button>
 
             <%= if @show_dropdown do %>
-              <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48" phx-click-away="close_dropdown">
-                <form phx-change="select_patient">
-                  <select
-                    id="select-patient"
-                    name="patient_id"
-                    class="block w-full p-2 border rounded-md text-gray-700"
-                  >
-                    <option value="">Paciente</option>
-                    <%= for paciente <- @pacientes do %>
-                      <option value={paciente.patient_id}>{paciente.user.name}</option>
+              <div class="absolute bg-white border rounded-md shadow-md p-4 mt-2 w-64" phx-click-away="close_dropdown">
+                <form phx-change="update_recommendation">
+                  <select name="patient_id" class="block w-full p-2 border rounded-md mb-2">
+                    <option value="">Escolha o paciente</option>
+                    <%= for p <- @pacientes do %>
+                      <option value={p.patient_id} selected={@selected_patient == p.patient_id}>
+                        <%= p.user.name %>
+                      </option>
                     <% end %>
                   </select>
+
+                  <select name="type" class="block w-full p-2 border rounded-md mb-2">
+                    <option value="">Tipo de exercício</option>
+                    <option value="training" selected={@selected_type == "training"}>Treino</option>
+                    <option value="test" selected={@selected_type == "test"}>Teste</option>
+                  </select>
+
+                  <%= if @selected_type == "training" do %>
+                    <select name="difficulty" class="block w-full p-2 border rounded-md mb-2">
+                      <option value="">Dificuldade</option>
+                      <option value="facil" selected={@selected_difficulty == "facil"}>Fácil</option>
+                      <option value="medio" selected={@selected_difficulty == "medio"}>Médio</option>
+                      <option value="dificil" selected={@selected_difficulty == "dificil"}>Difícil</option>
+                      <option value="criado" selected={@selected_difficulty == "criado"}>Criado</option>
+                    </select>
+                  <% end %>
                 </form>
 
                 <button
                   phx-click="recommend_task"
                   phx-value-patient_id={@selected_patient}
-                  class="mt-2 w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600"
+                  phx-value-type={@selected_type}
+                  phx-value-difficulty={@selected_difficulty}
+                  class="mt-4 w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600"
                 >
                   Confirmar
                 </button>
