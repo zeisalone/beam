@@ -5,8 +5,8 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
   alias Beam.Exercices.Result
 
   @total_trials 20
-  @default_display_time %{facil: 3000, medio: 2000, dificil: 1200}
-  @default_question_time %{facil: 5500, medio: 5000, dificil: 4500}
+  @default_display_time %{facil: 3000, medio: 2000, dificil: 2000}
+  @default_question_time %{facil: 5500, medio: 5000, dificil: 5000}
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user")
@@ -92,7 +92,14 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
     trial = socket.assigns.current_trial
     question_time = @default_question_time[socket.assigns.difficulty || :medio]
 
-    question = Enum.random([:word, :color])
+    question =
+      case socket.assigns.difficulty do
+        :facil -> :color
+        :medio -> :word
+        :dificil -> Enum.random([:word, :color])
+        _ -> :word
+      end
+
     options = NameAndColor.generate_options(trial, question)
 
     omission_ref = Process.send_after(self(), :handle_omission, question_time)

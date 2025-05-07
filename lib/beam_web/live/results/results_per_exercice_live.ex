@@ -18,6 +18,7 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
        full_screen?: false,
        selected_user_id: nil,
        selected_result_type: nil,
+       sort_field: :inserted_at,
        sort_order: :desc
      )}
   end
@@ -45,19 +46,56 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
      assign(socket, results: filtered_results, selected_result_type: selected_result_type)}
   end
 
-  def handle_event("toggle_sort", _params, socket) do
-    new_sort_order = if socket.assigns.sort_order == :asc, do: :desc, else: :asc
+  def handle_event("sort_by", %{"field" => field_str}, socket) do
+    field = String.to_existing_atom(field_str)
+
+    new_sort_order =
+      if socket.assigns.sort_field == field and socket.assigns.sort_order == :asc,
+        do: :desc,
+        else: :asc
 
     sorted_results =
-      Enum.sort_by(socket.assigns.results, & &1.inserted_at, fn a, b ->
-        case new_sort_order do
-          :asc -> NaiveDateTime.compare(a, b) == :lt
-          :desc -> NaiveDateTime.compare(a, b) == :gt
-        end
+      Enum.sort(socket.assigns.results, fn a, b ->
+        compare =
+          case compare_key(sort_key(field, a), sort_key(field, b)) do
+            :eq -> NaiveDateTime.compare(a.inserted_at, b.inserted_at)
+            res -> res
+          end
+
+        if new_sort_order == :asc, do: compare == :lt, else: compare == :gt
       end)
 
-    {:noreply, assign(socket, results: sorted_results, sort_order: new_sort_order)}
+    {:noreply,
+     assign(socket,
+       results: sorted_results,
+       sort_field: field,
+       sort_order: new_sort_order
+     )}
   end
+
+  defp sort_key(:user_name, r), do: get_user_name(r.user_id)
+  defp sort_key(:accuracy, r), do: r.accuracy
+  defp sort_key(:inserted_at, r), do: r.inserted_at
+  defp sort_key(_, r), do: r.inserted_at
+
+  defp compare_key(a, b) when is_float(a) do
+    cond do
+      a < b -> :lt
+      a > b -> :gt
+      true -> :eq
+    end
+  end
+
+  defp compare_key(a, b) when is_binary(a) do
+    cond do
+      a < b -> :lt
+      a > b -> :gt
+      true -> :eq
+    end
+  end
+
+  defp compare_key(%NaiveDateTime{} = a, %NaiveDateTime{} = b), do: NaiveDateTime.compare(a, b)
+  defp compare_key(_, _), do: :eq
 
   defp filter_by_user(results, nil), do: results
   defp filter_by_user(results, user_id), do: Enum.filter(results, &(&1.user_id == user_id))
@@ -88,6 +126,21 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
       end
     end)
     |> Enum.reject(&is_nil/1)
+  end
+
+  defp get_user_name(user_id) do
+    case Beam.Repo.get(Beam.Accounts.User, user_id) do
+      nil -> "Desconhecido"
+      user -> user.name
+    end
+  end
+
+  defp sort_icon(current_field, current_order, field) do
+    if current_field == field do
+      if current_order == :asc, do: "↑", else: "↓"
+    else
+      ""
+    end
   end
 
   def render(assigns) do
@@ -154,33 +207,39 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
         <table class="w-full border-collapse border border-gray-300">
           <thead>
             <tr class="bg-gray-200">
-              <th class="border border-gray-300 px-4 py-2">Paciente</th>
+              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="user_name">
+                <div class="inline-flex items-center gap-1">
+                  Paciente <%= sort_icon(@sort_field, @sort_order, :user_name) %>
+                </div>
+              </th>
               <th class="border border-gray-300 px-4 py-2">Tipo</th>
               <th class="border border-gray-300 px-4 py-2">Corretas</th>
               <th class="border border-gray-300 px-4 py-2">Erradas</th>
               <th class="border border-gray-300 px-4 py-2">Omitidas</th>
-              <th class="border border-gray-300 px-4 py-2">Precisão</th>
+              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="accuracy">
+                <div class="inline-flex items-center gap-1">
+                  Precisão <%= sort_icon(@sort_field, @sort_order, :accuracy) %>
+                </div>
+              </th>
               <th class="border border-gray-300 px-4 py-2">Tempo de Reação</th>
-              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="toggle_sort">
-                Data {if @sort_order == :asc, do: "↑", else: "↓"}
+              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="inserted_at">
+                <div class="inline-flex items-center gap-1">
+                  Data <%= sort_icon(@sort_field, @sort_order, :inserted_at) %>
+                </div>
               </th>
             </tr>
           </thead>
           <tbody>
             <%= for result <- @results do %>
               <tr class="border border-gray-300">
-                <td class="border border-gray-300 px-4 py-2">{get_user_name(result.user_id)}</td>
-                <td class="border border-gray-300 px-4 py-2">{result.result_type}</td>
-                <td class="border border-gray-300 px-4 py-2">{result.correct}</td>
-                <td class="border border-gray-300 px-4 py-2">{result.wrong}</td>
-                <td class="border border-gray-300 px-4 py-2">{result.omitted}</td>
-                <td class="border border-gray-300 px-4 py-2">
-                  {Float.round(result.accuracy * 100, 2)}%
-                </td>
-                <td class="border border-gray-300 px-4 py-2">
-                  {Float.round(result.reaction_time / 1000, 2)}s
-                </td>
-                <td class="border border-gray-300 px-4 py-2">{format_date(result.inserted_at)}</td>
+                <td class="border border-gray-300 px-4 py-2"><%= get_user_name(result.user_id) %></td>
+                <td class="border border-gray-300 px-4 py-2"><%= result.result_type %></td>
+                <td class="border border-gray-300 px-4 py-2"><%= result.correct %></td>
+                <td class="border border-gray-300 px-4 py-2"><%= result.wrong %></td>
+                <td class="border border-gray-300 px-4 py-2"><%= result.omitted %></td>
+                <td class="border border-gray-300 px-4 py-2"><%= Float.round(result.accuracy * 100, 2) %>%</td>
+                <td class="border border-gray-300 px-4 py-2"><%= Float.round(result.reaction_time / 1000, 2) %>s</td>
+                <td class="border border-gray-300 px-4 py-2"><%= format_date(result.inserted_at) %></td>
               </tr>
             <% end %>
           </tbody>
@@ -188,12 +247,5 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
       <% end %>
     </div>
     """
-  end
-
-  defp get_user_name(user_id) do
-    case Beam.Repo.get(Beam.Accounts.User, user_id) do
-      nil -> "Desconhecido"
-      user -> user.name
-    end
   end
 end

@@ -32,42 +32,39 @@ defmodule BeamWeb.Results.ResultsEndLive do
 
   def render(assigns) do
     ~H"""
-    <div class="p-10 text-center">
-      <h1 class="text-3xl font-bold mb-6">Resultados da Tarefa: {@task_name}</h1>
+    <div class="min-h-screen flex flex-col items-center bg-white px-4 pt-16">
+      <h1 class="text-xl font-semibold text-gray-800 mb-6">
+        Resultados da Tarefa: <%= @task_name %>
+      </h1>
 
-      <table class="table-auto border-collapse border border-gray-300 w-full mt-4">
-        <thead>
-          <tr class="bg-gray-200">
-            <th class="border border-gray-300 px-4 py-2">Corretos</th>
-            <th class="border border-gray-300 px-4 py-2">Errados</th>
-            <th class="border border-gray-300 px-4 py-2">Omitidos</th>
-            <th class="border border-gray-300 px-4 py-2">Precisão (%)</th>
-            <th class="border border-gray-300 px-4 py-2">Tempo de Reação Médio (s)</th>
-          </tr>
-        </thead>
-        <tbody>
-          <%= for result <- @results do %>
-            <tr class="hover:bg-gray-100">
-              <td class="border border-gray-300 px-4 py-2 text-center">{result.correct}</td>
-              <td class="border border-gray-300 px-4 py-2 text-center">{result.wrong}</td>
-              <td class="border border-gray-300 px-4 py-2 text-center">{result.omitted || 0}</td>
-              <td class="border border-gray-300 px-4 py-2 text-center">
-                {Float.round(result.accuracy * 100, 2)}%
-              </td>
-              <td class="border border-gray-300 px-4 py-2 text-center">
-                {Float.round(result.reaction_time / 1000, 2)}s
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+      <%= for result <- @results do %>
+        <div class="text-center mb-6">
+          <p class="text-5xl font-extrabold text-gray-900">
+            <%= result.correct %>/<%= result.correct + result.wrong + result.omitted %>
+          </p>
+          <p class="text-xl text-gray-600 mt-2">
+            <%= Float.round(result.accuracy * 100, 2) %>%
+          </p>
+        </div>
 
-      <div class="mt-6">
-        <.link navigate={~p"/results"} class="px-4 py-2 bg-blue-500 text-white rounded">
+        <details class="w-full max-w-md bg-gray-100 rounded shadow-md p-4 text-left">
+          <summary class="cursor-pointer font-medium text-gray-700">Ver em detalhe</summary>
+          <div class="mt-4 text-sm text-gray-700 space-y-2">
+            <p><strong>Respostas Corretas:</strong> <%= result.correct %></p>
+            <p><strong>Respostas Erradas:</strong> <%= result.wrong %></p>
+            <p><strong>Respostas Omitidas:</strong> <%= result.omitted %></p>
+            <p><strong>Precisão:</strong> <%= Float.round(result.accuracy * 100, 2) %>%</p>
+            <p><strong>Tempo Médio de Reação:</strong> <%= Float.round(result.reaction_time / 1000, 2) %>s</p>
+          </div>
+        </details>
+      <% end %>
+
+      <div class="mt-8 flex flex-col sm:flex-row gap-4">
+        <.link navigate={~p"/results"} class="px-4 py-2 bg-blue-500 text-white rounded text-center">
           Ver todos os Resultados
         </.link>
-        <.link navigate={~p"/tasks"} class="px-4 py-2 bg-blue-500 text-white rounded">
-          Voltar às tarefas
+        <.link navigate={~p"/tasks"} class="px-4 py-2 bg-gray-500 text-white rounded text-center">
+          Voltar às Tarefas
         </.link>
       </div>
     </div>

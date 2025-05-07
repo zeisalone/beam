@@ -1,6 +1,6 @@
-defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
+defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   use BeamWeb, :live_view
-  alias Beam.Exercices.Tasks.SearchingForAnAnswer
+  alias Beam.Exercices.Tasks.SearchingForAVowel
   alias Beam.Repo
   alias Beam.Exercices.Result
 
@@ -10,9 +10,8 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   @intro_duration 3000
 
   def mount(_params, session, socket) do
-    current_user = Map.get(session, "current_user", nil)
-
-    task_id = Map.get(session, "task_id", nil)
+    current_user = Map.get(session, "current_user")
+    task_id = Map.get(session, "task_id")
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
     full_screen = Map.get(session, "full_screen?", true)
@@ -20,7 +19,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
 
-      target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
+      target = Map.put(SearchingForAVowel.generate_target(), :position, "up")
 
       {:ok,
        assign(socket,
@@ -56,16 +55,9 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   defp maybe_to_atom(value), do: value
 
   def handle_info(:prepare_task, socket) do
-    target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
-
+    target = Map.put(SearchingForAVowel.generate_target(), :position, "up")
     Process.send_after(self(), :start_intro, 1000)
-
-    {:noreply,
-     assign(socket,
-       target: target,
-       preparing_task: false,
-       show_intro: true
-     )}
+    {:noreply, assign(socket, target: target, preparing_task: false, show_intro: true)}
   end
 
   def handle_info(:start_intro, socket) do
@@ -74,8 +66,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   end
 
   def handle_info(:start_phase, socket) do
-    phase = SearchingForAnAnswer.generate_phase(socket.assigns.target, socket.assigns.difficulty)
-
+    phase = SearchingForAVowel.generate_phase(socket.assigns.target, socket.assigns.difficulty)
     Process.send_after(self(), :start_cycle, @phase_duration)
 
     {:noreply,
@@ -89,12 +80,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
 
   def handle_info(:start_cycle, socket) do
     Process.send_after(self(), :next_phase, @cycle_duration)
-
-    {:noreply,
-     assign(socket,
-       phase: [],
-       in_cycle: true
-     )}
+    {:noreply, assign(socket, phase: [], in_cycle: true)}
   end
 
   def handle_info(:next_phase, socket) do
@@ -107,15 +93,13 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     else
       Process.send_after(self(), :start_phase, 0)
 
-      new_results = [%{result: :omitted, reaction_time: reaction_time} | socket.assigns.results]
-
       {:noreply,
        assign(socket,
          omitted: if(was_omitted, do: socket.assigns.omitted + 1, else: socket.assigns.omitted),
          total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
          user_response: nil,
          current_phase_index: socket.assigns.current_phase_index + 1,
-         results: new_results
+         results: [%{result: :omitted, reaction_time: reaction_time} | socket.assigns.results]
        )}
     end
   end
@@ -124,110 +108,71 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     {task_id, result_id} = save_final_result(socket)
 
     case socket.assigns.live_action do
-      :test ->
-        Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
-
-      :training ->
-        Beam.Exercices.save_training_attempt(
-          socket.assigns.user_id,
-          task_id,
-          result_id,
-          socket.assigns.difficulty
-        )
+      :test -> Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
+      :training -> Beam.Exercices.save_training_attempt(socket.assigns.user_id, task_id, result_id, socket.assigns.difficulty)
     end
 
     Process.sleep(5000)
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
   end
 
-  def handle_event("key_pressed", %{"key" => key}, socket) do
-    if socket.assigns.in_cycle do
-      {:noreply, socket}
-    else
-      key_to_position = %{
-        "ArrowUp" => "up",
-        "ArrowDown" => "down",
-        "ArrowLeft" => "left",
-        "ArrowRight" => "right"
-      }
+  def handle_event("vowel_click", %{"vowel" => vowel, "color" => color}, socket) do
+    if socket.assigns.in_cycle, do: {:noreply, socket}, else: register_click(vowel, color, socket)
+  end
 
-      user_position = Map.get(key_to_position, key, nil)
+  defp register_click(vowel, color, socket) do
+    reaction_time =
+      (System.monotonic_time() - socket.assigns.current_phase_start)
+      |> System.convert_time_unit(:native, :millisecond)
 
-      if user_position do
-        reaction_time =
-          (System.monotonic_time() - socket.assigns.current_phase_start)
-          |> System.convert_time_unit(:native, :millisecond)
+    clicked = %{vowel: vowel, color: color}
+    result = SearchingForAVowel.validate_response(clicked, socket.assigns.target)
 
-        target =
-          Enum.find(
-            socket.assigns.phase,
-            &(&1.shape == socket.assigns.target.shape && &1.color == socket.assigns.target.color)
-          )
-
-        result =
-          cond do
-            reaction_time > @phase_duration -> :omitted
-            user_position == target.position -> :correct
-            true -> :wrong
-          end
-
-        update_counts =
-          case result do
-            :correct -> %{correct: socket.assigns.correct + 1}
-            :wrong -> %{wrong: socket.assigns.wrong + 1}
-            :omitted -> %{omitted: socket.assigns.omitted + 1}
-          end
-
-        new_results = [%{result: result, reaction_time: reaction_time} | socket.assigns.results]
-
-        {:noreply,
-         assign(socket,
-           user_response: user_position,
-           total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
-           omitted: update_counts[:omitted] || socket.assigns.omitted,
-           correct: update_counts[:correct] || socket.assigns.correct,
-           wrong: update_counts[:wrong] || socket.assigns.wrong,
-           phase: [],
-           in_cycle: true,
-           results: new_results
-         )}
-      else
-        {:noreply, socket}
+    updated =
+      case result do
+        :correct -> %{correct: socket.assigns.correct + 1}
+        :wrong -> %{wrong: socket.assigns.wrong + 1}
       end
-    end
+
+    {:noreply,
+     assign(socket,
+       user_response: clicked,
+       total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
+       correct: updated[:correct] || socket.assigns.correct,
+       wrong: updated[:wrong] || socket.assigns.wrong,
+       phase: [],
+       in_cycle: true,
+       results: [%{result: result, reaction_time: reaction_time} | socket.assigns.results]
+     )}
   end
 
   defp save_final_result(socket) do
-    task_id = Beam.Exercices.TaskList.task_id(:searching_for_an_answer)
-    total_attempts = socket.assigns.correct + socket.assigns.wrong + socket.assigns.omitted
-    accuracy = if total_attempts > 0, do: socket.assigns.correct / total_attempts, else: 0.0
+    task = Beam.Repo.get_by!(Beam.Exercices.Task, type: "searching_for_a_vowel")
 
-    avg_reaction_time =
-      if total_attempts > 0, do: socket.assigns.total_reaction_time / total_attempts, else: 0
+    total = socket.assigns.correct + socket.assigns.wrong + socket.assigns.omitted
+    accuracy = if total > 0, do: socket.assigns.correct / total, else: 0.0
+    avg_time = if total > 0, do: socket.assigns.total_reaction_time / total, else: 0
 
-    result_entry = %{
+    entry = %{
       user_id: socket.assigns.user_id,
-      task_id: task_id,
+      task_id: task.id,
       correct: socket.assigns.correct,
       wrong: socket.assigns.wrong,
       omitted: socket.assigns.omitted,
-      reaction_time: avg_reaction_time,
-      accuracy: accuracy
+      accuracy: accuracy,
+      reaction_time: avg_time
     }
 
-    case Repo.insert(Result.changeset(%Result{}, result_entry)) do
-      {:ok, result} -> {task_id, result.id}
-      {:error, _reason} -> {task_id, nil}
+    case Repo.insert(Result.changeset(%Result{}, entry)) do
+      {:ok, r} -> {task.id, r.id}
+      _ -> {task.id, nil}
     end
   end
 
+
   def render(assigns) do
     ~H"""
-    <div
-      class="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white"
-      phx-window-keydown="key_pressed"
-      phx-capture-keydown
-    >
+    <div class="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white">
       <%= unless @preparing_task or @show_intro do %>
         <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[40%] z-50">
           <div class="w-full h-6 bg-gray-300 rounded-full overflow-hidden shadow-inner">
@@ -260,22 +205,25 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
       <% else %>
         <%= if @show_intro do %>
           <div class="flex flex-col items-center justify-center w-full h-full bg-white">
-            <p class="text-2xl font-bold text-gray-800 mb-4">A figura que tens de seguir</p>
+            <p class="text-2xl font-bold text-gray-800 mb-4">A vogal que tens de encontrar</p>
             <div class="w-32 h-32 flex items-center justify-center border-4 border-gray-600 rounded-full">
-              <div class="w-24 h-24">
-                <%= raw(shape_svg(@target.shape, @target.color)) %>
-              </div>
+              <span class={"text-6xl font-bold #{tailwind_color(@target.color)}"}>
+                <%= @target.vowel %>
+              </span>
             </div>
           </div>
         <% else %>
           <div class="relative flex items-center justify-center w-full h-full bg-white">
             <div class="relative flex items-center justify-center w-[85vw] h-[85vh] border-[20px] border-gray-600">
-              <%= for %{position: position, shape: shape, color: color} <- @phase do %>
-                <div class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center #{tailwind_color(color)} rounded-full bg-white border-4 border-gray-600"}>
-                  <div class="w-[75%] h-[75%] flex items-center justify-center">
-                    <%= raw(shape_svg(shape, color)) %>
-                  </div>
-                </div>
+              <%= for %{vowel: vowel, color: color, position: position} <- @phase do %>
+                <button
+                  phx-click="vowel_click"
+                  phx-value-vowel={vowel}
+                  phx-value-color={color}
+                  class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center bg-white border-4 border-gray-600 rounded-full #{tailwind_color(color)} text-3xl font-bold"}
+                >
+                  <%= vowel %>
+                </button>
               <% end %>
             </div>
           </div>
@@ -296,21 +244,4 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   defp tailwind_color("green"), do: "text-green-600"
   defp tailwind_color("yellow"), do: "text-yellow-300"
   defp tailwind_color(_), do: "text-gray-500"
-
-  defp shape_svg(shape, color) do
-    file_path = Path.join(:code.priv_dir(:beam), "static/images/#{shape}.svg")
-
-    case File.read(file_path) do
-      {:ok, svg_content} ->
-        svg_content
-        |> String.replace(~r/fill=["']#?[0-9a-fA-F]*["']/, "")
-        |> String.replace(
-          "<svg",
-          "<svg class=\"w-full h-full fill-current #{tailwind_color(color)}\""
-        )
-
-      {:error, _reason} ->
-        "<!-- SVG não encontrado -->"
-    end
-  end
 end

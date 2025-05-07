@@ -4,7 +4,7 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @total_questions 20
+  @total_questions 10
   @initial_pause 1000
   @equation_display_time 2000
   @answer_time_limit 4000
@@ -20,7 +20,6 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
     if current_user do
       questions = for _ <- 1..@total_questions, do: MathOperation.generate_question(difficulty)
-
       {first_a, first_b, first_operator, first_result, first_options} = Enum.at(questions, 0)
 
       if connected?(socket), do: Process.send_after(self(), :show_equation, @initial_pause)
@@ -56,19 +55,13 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   @impl true
   def handle_info(:show_equation, socket) do
     Process.send_after(self(), :show_options, @equation_display_time)
-
     {:noreply, assign(socket, phase: :show_equation)}
   end
 
   @impl true
   def handle_info(:show_options, socket) do
     Process.send_after(self(), :timeout, @answer_time_limit)
-
-    {:noreply,
-     assign(socket,
-       phase: :show_options,
-       start_time: System.system_time(:millisecond)
-     )}
+    {:noreply, assign(socket, phase: :show_options, start_time: System.system_time(:millisecond))}
   end
 
   @impl true
@@ -181,15 +174,11 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex flex-col items-center justify-center mt-10">
-      <h1 class="text-3xl font-bold">Resolva a Operação Matemática</h1>
-      <p class="text-lg mt-4">
-        Questão <span class="font-semibold"><%= @current_question_index + 1 %></span>
-        de <span class="font-semibold"><%= @total_questions %></span>
-      </p>
+    <div class="relative min-h-screen flex flex-col justify-center items-center pt-10 pb-24">
+      <h1 class="text-3xl font-bold mb-6">Resolve a Operação Matemática</h1>
 
       <%= if @phase == :show_equation do %>
-        <div class="mt-6 p-6 rounded-lg shadow-md w-full text-center">
+        <div class="p-6 rounded-lg shadow-md w-full max-w-md text-center">
           <p class="text-6xl font-bold">
             <%= @a %> <%= @operator %> <%= @b %>
           </p>
@@ -197,7 +186,7 @@ defmodule BeamWeb.Tasks.MathOperationLive do
       <% end %>
 
       <%= if @phase == :show_options do %>
-        <div class="mt-10 flex justify-center space-x-4 w-full">
+        <div class="mt-8 flex justify-center space-x-4 flex-wrap max-w-xl">
           <%= for option <- @options do %>
             <button
               class="bg-gray-500 text-white text-2xl font-bold px-10 py-4 rounded-lg shadow-md hover:bg-gray-700 transition-all"
@@ -210,6 +199,17 @@ defmodule BeamWeb.Tasks.MathOperationLive do
           <% end %>
         </div>
       <% end %>
+
+      <div class="fixed bottom-6 left-0 right-0 flex justify-center space-x-2">
+        <%= for i <- 1..@total_questions do %>
+          <div class={
+            "w-6 h-6 rounded-full border-2 text-xs font-bold flex items-center justify-center transition-all duration-200 " <>
+            if i <= @current_question_index, do: "bg-green-500 text-white", else: "bg-gray-300 text-gray-400"
+          }>
+            <%= i %>
+          </div>
+        <% end %>
+      </div>
     </div>
     """
   end
