@@ -11,9 +11,19 @@ defmodule BeamWeb.Results.ResultsMainLive do
     else
       patients = Accounts.list_patients_for_therapist(current_user.id)
       tasks = Exercices.list_tasks()
+      categories = Exercices.list_categories()
 
       {:ok,
-       assign(socket, show_modal: false, full_screen?: false, show_task_modal: false, patients: patients, tasks: tasks, open_help: false)}
+       assign(socket,
+         show_modal: false,
+         show_task_modal: false,
+         show_category_modal: false,
+         full_screen?: false,
+         patients: patients,
+         tasks: tasks,
+         categories: categories,
+         open_help: false
+       )}
     end
   end
 
@@ -33,6 +43,14 @@ defmodule BeamWeb.Results.ResultsMainLive do
     {:noreply, assign(socket, show_task_modal: false)}
   end
 
+  def handle_event("open_category_modal", _params, socket) do
+    {:noreply, assign(socket, show_category_modal: true)}
+  end
+
+  def handle_event("close_category_modal", _params, socket) do
+    {:noreply, assign(socket, show_category_modal: false)}
+  end
+
   def handle_event("select_patient", %{"patient_id" => patient_id}, socket) do
     case Accounts.get_user_id_by_patient_id(patient_id) do
       nil ->
@@ -45,6 +63,10 @@ defmodule BeamWeb.Results.ResultsMainLive do
 
   def handle_event("select_task", %{"task_id" => task_id}, socket) do
     {:noreply, push_navigate(socket, to: ~p"/results/per_exercise?task_id=#{task_id}")}
+  end
+
+  def handle_event("select_category", %{"category" => category}, socket) do
+    {:noreply, push_navigate(socket, to: ~p"/results/per_category?category=#{category}")}
   end
 
   def handle_event("toggle_help", _, socket) do
@@ -65,6 +87,9 @@ defmodule BeamWeb.Results.ResultsMainLive do
           </.button>
           <.button phx-click="open_task_modal" class="w-full">
             Ver Resultados por Exercício
+          </.button>
+          <.button phx-click="open_category_modal" class="w-full">
+            Ver Resultados por Categoria
           </.button>
         </div>
       </div>
@@ -111,6 +136,27 @@ defmodule BeamWeb.Results.ResultsMainLive do
         </div>
       <% end %>
 
+      <%= if @show_category_modal do %>
+        <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
+          <div class="bg-white p-6 rounded shadow-lg">
+            <h2 class="text-xl font-bold mb-4">Selecionar Categoria</h2>
+            <form phx-submit="select_category">
+              <select name="category" class="border p-2 rounded w-full">
+                <%= for category <- @categories do %>
+                  <option value={category}><%= category %></option>
+                <% end %>
+              </select>
+              <div class="mt-4 flex justify-end space-x-2">
+                <.button type="submit">Selecionar</.button>
+                <.button type="button" phx-click="close_category_modal" class="bg-red-600 text-black hover:bg-red-700">
+                  Cancelar
+                </.button>
+              </div>
+            </form>
+          </div>
+        </div>
+      <% end %>
+
       <.help_button open={@open_help}>
         <:help>
           <p><strong>1.</strong> Nesta página podes consultar os resultados de pacientes ou de exercícios realizados na aplicação.</p>
@@ -122,7 +168,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
           <p><strong>3.</strong> O botão <em>Ver Resultados por Exercício</em> mostra-te o desempenho agregado por tarefa.</p>
         </:help>
         <:help>
-          <p><strong>4.</strong> Em ambos os modos, podes aplicar filtros para obter resultados mais detalhados.</p>
+          <p><strong>4.</strong> O botão <em>Ver Resultados por Categoria</em> permite-te explorar os resultados segundo as tags dos exercícios.</p>
         </:help>
       </.help_button>
     </div>

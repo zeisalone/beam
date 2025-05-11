@@ -321,4 +321,53 @@ defmodule Beam.Exercices do
     Repo.aggregate(query, :count)
   end
 
+  def task_has_full_sequence?(task_id) do
+    task = get_task!(task_id)
+    task.name in ["Sequência Inversa", "Ordenar os Animais"]
+  end
+
+  def get_oldest_unseen_recommendation(task_id, user_id) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> nil
+      patient ->
+        Repo.one(
+          from r in Beam.Exercices.Recommendation,
+            where: r.patient_id == ^patient.patient_id and r.task_id == ^task_id and r.seen == false,
+            order_by: [asc: r.inserted_at],
+            preload: [therapist: [:user]],
+            limit: 1
+        )
+    end
+  end
+
+  def list_categories do
+    Task
+    |> Repo.all()
+    |> Enum.flat_map(& &1.tags)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
+  def list_results_by_category(category) do
+    query =
+      from r in Result,
+        join: t in Task, on: r.task_id == t.id,
+        where: ^category in t.tags,
+        preload: [:task, :user]
+
+    Repo.all(query)
+    |> Enum.map(fn result ->
+      result_type =
+        case Repo.get_by(Test, result_id: result.id) do
+          %Test{} -> "Teste"
+          nil ->
+            case Repo.get_by(Training, result_id: result.id) do
+              %Training{difficulty: difficulty} -> "Treino (#{difficulty})"
+              nil -> "Desconhecido"
+            end
+        end
+
+        Map.merge(result, %{result_type: result_type})
+    end)
+  end
 end

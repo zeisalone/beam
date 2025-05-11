@@ -1,0 +1,269 @@
+defmodule BeamWeb.Tasks.OrderAnimalsLive do
+  use BeamWeb, :live_view
+  alias Beam.Exercices.Tasks.OrderAnimals
+  alias Beam.Exercices.Result
+  alias Beam.Repo
+
+  @total_rounds 5
+  @animal_total_time 2000
+  @slide_duration 400
+  @slide_out_delay @animal_total_time - @slide_duration
+
+  def mount(_params, session, socket) do
+    current_user = session["current_user"]
+    task_id = session["task_id"]
+    live_action = session["live_action"] |> maybe_to_atom() || :training
+    difficulty = session["difficulty"] |> maybe_to_atom() || :medio
+
+    if connected?(socket), do: Process.send_after(self(), :start_round, 1000)
+
+    {:ok,
+     assign(socket,
+       current_user: current_user,
+       user_id: current_user.id,
+       task_id: task_id,
+       difficulty: difficulty,
+       live_action: live_action,
+       full_screen?: true,
+       preparing: true,
+       show_sequence: true,
+       target_sequence: [],
+       current_animal: nil,
+       animating_out?: false,
+       shuffled_options: [],
+       user_sequence: [],
+       dragging: nil,
+       round_index: 0,
+       correct: 0,
+       wrong: 0,
+       omitted: 0,
+       full_sequence: 0,
+       total_reaction_time: 0,
+       current_start_time: nil,
+       game_finished: false
+     )}
+  end
+
+  def handle_info(:start_round, socket) do
+    %{target_sequence: seq, shuffled_options: opts} =
+      OrderAnimals.generate_target_sequence(socket.assigns.difficulty)
+      |> OrderAnimals.generate_phase()
+
+    Process.send_after(self(), {:show_animal, 0}, 1000)
+
+    {:noreply,
+     assign(socket,
+       preparing: false,
+       show_sequence: true,
+       target_sequence: seq,
+       current_animal: nil,
+       animating_out?: false,
+       shuffled_options: opts,
+       user_sequence: List.duplicate(nil, length(seq)),
+       dragging: nil
+     )}
+  end
+
+  def handle_info({:show_animal, idx}, socket) do
+    seq = socket.assigns.target_sequence
+
+    if idx < length(seq) do
+      animal = Enum.at(seq, idx)
+
+      socket = assign(socket, current_animal: animal, animating_out?: false)
+
+      Process.send_after(self(), :animate_out, @slide_out_delay)
+      Process.send_after(self(), {:show_animal, idx + 1}, @animal_total_time)
+
+      {:noreply, socket}
+    else
+      Process.send_after(self(), :hide_sequence, @animal_total_time)
+      {:noreply, assign(socket, current_animal: nil, animating_out?: false)}
+    end
+  end
+
+  def handle_info(:animate_out, socket) do
+    {:noreply, assign(socket, animating_out?: true)}
+  end
+
+  def handle_info(:hide_sequence, socket) do
+    {:noreply, assign(socket, show_sequence: false, current_start_time: System.monotonic_time())}
+  end
+
+  def handle_info(:save_results, socket) do
+    {task_id, result_id} = save_final_result(socket)
+
+    case socket.assigns.live_action do
+      :test -> Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
+      :training -> Beam.Exercices.save_training_attempt(socket.assigns.user_id, task_id, result_id, socket.assigns.difficulty)
+    end
+
+    Process.sleep(3000)
+    {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
+  end
+
+  def handle_event("drop_animal", %{"slot" => slot_str, "animal" => animal, "displaced" => displaced}, socket) do
+    idx = String.to_integer(slot_str)
+    sequence = socket.assigns.user_sequence
+
+    sequence =
+      sequence
+      |> Enum.map(fn x -> if x == animal, do: nil, else: x end)
+      |> List.replace_at(idx, animal)
+      |> then(fn seq ->
+        if displaced && displaced != animal do
+          case Enum.find_index(seq, &is_nil/1) do
+            nil -> seq
+            empty_idx -> List.replace_at(seq, empty_idx, displaced)
+          end
+        else
+          seq
+        end
+      end)
+
+    {:noreply, assign(socket, user_sequence: sequence)}
+  end
+
+  def handle_event("submit", %{"order" => user_order}, socket) do
+    user_sequence =
+      user_order
+      |> Enum.sort_by(fn {k, _} -> String.to_integer(k) end)
+      |> Enum.map(fn {_, v} -> v end)
+
+    {correct, wrong, omitted} =
+      OrderAnimals.evaluate_response(user_sequence, socket.assigns.target_sequence)
+
+    was_full =
+      Enum.all?(user_sequence, &(&1 in socket.assigns.target_sequence)) and
+        OrderAnimals.validate_response(user_sequence, socket.assigns.target_sequence) == :correct
+
+    full_sequence =
+      if was_full, do: socket.assigns.full_sequence + 1, else: socket.assigns.full_sequence
+
+    reaction_time = System.monotonic_time() - socket.assigns.current_start_time
+    reaction_time_ms = System.convert_time_unit(reaction_time, :native, :millisecond)
+
+    updated = %{
+      correct: socket.assigns.correct + correct,
+      wrong: socket.assigns.wrong + wrong,
+      omitted: socket.assigns.omitted + omitted,
+      full_sequence: full_sequence,
+      total_reaction_time: socket.assigns.total_reaction_time + reaction_time_ms,
+      round_index: socket.assigns.round_index + 1
+    }
+
+    if updated.round_index >= @total_rounds do
+      send(self(), :save_results)
+      {:noreply, assign(socket, updated |> Map.put(:game_finished, true))}
+    else
+      Process.send_after(self(), :start_round, 1000)
+      {:noreply, assign(socket, updated)}
+    end
+  end
+
+  defp save_final_result(socket) do
+    task_id = socket.assigns.task_id
+    total = socket.assigns.correct + socket.assigns.wrong + socket.assigns.omitted
+    accuracy = if total > 0, do: socket.assigns.correct / total, else: 0.0
+    avg_time = if total > 0, do: socket.assigns.total_reaction_time / total, else: 0
+
+    result = %{
+      user_id: socket.assigns.user_id,
+      task_id: task_id,
+      correct: socket.assigns.correct,
+      wrong: socket.assigns.wrong,
+      omitted: socket.assigns.omitted,
+      accuracy: accuracy,
+      reaction_time: avg_time,
+      full_sequence: socket.assigns.full_sequence
+    }
+
+    case Repo.insert(Result.changeset(%Result{}, result)) do
+      {:ok, r} -> {task_id, r.id}
+      _ -> {task_id, nil}
+    end
+  end
+
+  defp maybe_to_atom(nil), do: nil
+  defp maybe_to_atom(val) when is_binary(val), do: String.to_existing_atom(val)
+  defp maybe_to_atom(val), do: val
+
+  defp animal_svg(animal) do
+    path = Path.join(:code.priv_dir(:beam), "static/images/animals/#{animal}.svg")
+
+    case File.read(path) do
+      {:ok, svg} ->
+        svg
+        |> String.replace(~r/fill=["']#?[0-9a-fA-F]*["']/, "")
+        |> String.replace(~r/id=["'][^"']*["']/, "")
+        |> String.replace("<svg", ~s(<svg class="w-full h-full"))
+      _ -> "<!-- SVG não encontrado -->"
+    end
+  end
+
+  def render(assigns) do
+    ~H"""
+    <div class="flex items-center justify-center h-screen bg-white">
+      <%= if @game_finished do %>
+        <p class="text-xl font-bold text-gray-800">A calcular resultados...</p>
+      <% else %>
+        <%= if @preparing do %>
+          <p class="text-xl font-bold text-gray-800 animate-pulse">A preparar exercício...</p>
+        <% else %>
+          <%= if @show_sequence do %>
+            <div class="w-32 h-32 flex items-center justify-center">
+              <%= if @current_animal do %>
+                <div class={"w-full h-full #{if @animating_out?, do: "animate-slide-out", else: "animate-slide-in"}"}>
+                  <%= raw(animal_svg(@current_animal)) %>
+                </div>
+              <% end %>
+            </div>
+          <% else %>
+            <form phx-submit="submit">
+              <div class="flex gap-2 mb-6">
+                <%= for i <- 0..(length(@target_sequence) - 1) do %>
+                  <div
+                    id={"drop-slot-#{i}"}
+                    class="w-24 h-24 border-2 border-dashed border-gray-400 bg-gray-50 flex items-center justify-center"
+                    data-slot={i}
+                    phx-hook="Drop"
+                  >
+                   <%= if animal = Enum.at(@user_sequence, i) do %>
+                    <div
+                      id={"user-sequence-animal-#{i}"}
+                      class="w-full h-full"
+                      draggable="true"
+                      data-animal={animal}
+                      phx-hook="Drag"
+                    >
+                      <%= raw(animal_svg(animal)) %>
+                    </div>
+                  <% end %>
+                    <input type="hidden" name={"order[#{i}]"} value={Enum.at(@user_sequence, i) || ""} />
+                  </div>
+                <% end %>
+              </div>
+
+              <div class="flex flex-wrap gap-3 justify-center mb-4">
+                <%= for animal <- @shuffled_options do %>
+                  <div
+                    id={"drag-animal-#{animal}"}
+                    class="w-20 h-20 border cursor-move"
+                    draggable="true"
+                    data-animal={animal}
+                    phx-hook="Drag"
+                  >
+                    <%= raw(animal_svg(animal)) %>
+                  </div>
+                <% end %>
+              </div>
+
+              <button type="submit" class="mt-4 px-6 py-2 bg-blue-600 text-white rounded">Enviar</button>
+            </form>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+    """
+  end
+end

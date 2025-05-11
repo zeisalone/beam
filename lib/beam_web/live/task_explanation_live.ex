@@ -9,9 +9,12 @@ defmodule BeamWeb.TaskExplanationLive do
     task = Repo.get!(Exercices.Task, task_id)
     current_user = socket.assigns.current_user
 
-    if current_user.type == "Paciente" do
-      Exercices.mark_recommendation_as_seen(task_id, current_user.id)
-    end
+    recommendation =
+      if current_user.type == "Paciente" do
+        Exercices.get_oldest_unseen_recommendation(task.id, current_user.id)
+      else
+        nil
+      end
 
     pacientes =
       if current_user.type == "Terapeuta" do
@@ -30,28 +33,42 @@ defmodule BeamWeb.TaskExplanationLive do
        selected_type: nil,
        full_screen?: false,
        open_help: false,
-       selected_difficulty: nil
+       selected_difficulty: nil,
+       recommendation: recommendation
      )}
   end
 
   @impl true
+  def handle_event("dismiss_recommendation", _params, socket) do
+    Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
+    {:noreply, assign(socket, recommendation: nil)}
+  end
+
+  def handle_event("start_task", %{"type" => "test"}, socket) do
+    Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
+    {:noreply, push_navigate(socket, to: ~p"/tasks/#{socket.assigns.task.id}/test?live_action=test")}
+  end
+
+  def handle_event("start_task", %{"type" => "training", "difficulty" => difficulty}, socket) do
+    Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
+    {:noreply, push_navigate(socket, to: ~p"/tasks/#{socket.assigns.task.id}/training?live_action=training&difficulty=#{difficulty}")}
+  end
+
   def handle_event("toggle_dropdown", _params, socket) do
     {:noreply, assign(socket, show_dropdown: !socket.assigns.show_dropdown)}
   end
 
-  @impl true
   def handle_event("select_patient", %{"patient_id" => patient_id}, socket) do
     {:noreply, assign(socket, selected_patient: patient_id)}
   end
 
-  @impl true
   def handle_event("recommend_task", _params, socket) do
     case socket.assigns.selected_patient do
       nil ->
         {:noreply, put_flash(socket, :error, "Por favor, selecione um paciente.")}
 
       selected_patient_id when selected_patient_id != "" ->
-        case Repo.get_by(Beam.Accounts.Therapist, user_id: socket.assigns.current_user.id) do
+        case Repo.get_by(Accounts.Therapist, user_id: socket.assigns.current_user.id) do
           nil ->
             {:noreply, put_flash(socket, :error, "Erro: Terapeuta não encontrado.")}
 
@@ -77,22 +94,19 @@ defmodule BeamWeb.TaskExplanationLive do
     end
   end
 
-  @impl true
-def handle_event("update_recommendation", params, socket) do
-  {:noreply,
-   assign(socket,
-     selected_patient: Map.get(params, "patient_id", socket.assigns.selected_patient),
-     selected_type: Map.get(params, "type", socket.assigns.selected_type),
-     selected_difficulty: Map.get(params, "difficulty", socket.assigns.selected_difficulty)
-   )}
-end
+  def handle_event("update_recommendation", params, socket) do
+    {:noreply,
+     assign(socket,
+       selected_patient: Map.get(params, "patient_id", socket.assigns.selected_patient),
+       selected_type: Map.get(params, "type", socket.assigns.selected_type),
+       selected_difficulty: Map.get(params, "difficulty", socket.assigns.selected_difficulty)
+     )}
+  end
 
-  @impl true
   def handle_event("toggle_difficulty", _params, socket) do
     {:noreply, assign(socket, show_difficulty: !socket.assigns.show_difficulty)}
   end
 
-  @impl true
   def handle_event("select_difficulty", %{"difficulty" => difficulty}, socket) do
     {:noreply, assign(socket, selected_difficulty: difficulty)}
   end
@@ -120,7 +134,6 @@ end
       <h1 class="text-2xl font-bold text-gray-800 text-center mb-4">
         {@task.name}
       </h1>
-
       <div class="justify-center flex space-x-4 mb-6">
         <.link navigate={~p"/tasks"}>
           <.button class="w-40">Voltar</.button>
@@ -233,6 +246,33 @@ end
           </div>
         <% end %>
       </div>
+
+      <%= if @recommendation do %>
+        <div class="bg-white border border-blue-300 rounded-md p-4 mb-6 shadow-md">
+          <p class="mb-2 text-gray-700">
+            <strong>O Terapeuta <%= @recommendation.therapist.user.name %></strong> recomenda que faças este exercício em modo
+            <strong><%= @recommendation.type %></strong>
+            <%= if @recommendation.difficulty do %>
+              com dificuldade <strong><%= @recommendation.difficulty %></strong>
+            <% end %>.
+          </p>
+          <div class="flex gap-4 mt-3">
+            <.button phx-click="dismiss_recommendation" class="bg-gray-400 hover:bg-gray-500 text-white">
+              Não começar e limpar
+            </.button>
+
+            <%= if @recommendation.type == :teste do %>
+              <.button phx-click="start_task" phx-value-type="test" class="bg-blue-600 hover:bg-blue-700 text-white">
+                Começar
+              </.button>
+            <% else %>
+              <.button phx-click="start_task" phx-value-type="training" phx-value-difficulty={@recommendation.difficulty} class="bg-blue-600 hover:bg-blue-700 text-white">
+                Começar
+              </.button>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
 
       <textarea
         class="block w-full whitespace-pre-line h-80 rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-400 bg-white p-3 resize-none overflow-auto"

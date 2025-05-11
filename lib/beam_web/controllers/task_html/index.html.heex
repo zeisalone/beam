@@ -5,10 +5,9 @@
     <table class="w-full text-sm table-fixed">
       <thead>
         <tr class="bg-primary-50">
-          <th class="w-12 px-4 py-3 text-left font-semibold">Imagem</th>
-          <th class="w-1/4 px-4 py-3 text-left font-semibold">Exercício</th>
+          <th class="w-12 px-4 py-3 text-left font-semibold">Jogo</th>
+          <th class="w-1/4 px-4 py-3 text-left font-semibold">Nome</th>
           <th class="w-2/5 px-4 py-3 text-left font-semibold">Capacidades Treinadas</th>
-          <th class="w-10 px-4 py-3 text-left font-semibold">Ação</th>
         </tr>
       </thead>
       <tbody>
@@ -29,11 +28,13 @@
             </td>
 
             <td class="px-4 py-4 font-medium truncate">
-              <%= task.name %>
+              <.link navigate={~p"/tasks/#{task.id}"} class="text-primary-600 text-md hover:text-primary-700 hover:underline">
+                <%= task.name %>
+              </.link>
             </td>
 
             <td class="px-4 py-4">
-              <div class="flex flex-wrap gap-4">
+              <div class="flex flex-wrap gap-5">
                 <%= for tag <- task.tags do %>
                   <% color_class = Map.get(@tag_colors, tag, "bg-gray-100 text-gray-700 hover:bg-gray-200") %>
                   <span class={"px-2 py-1 rounded-full text-xs font-medium transition-colors #{color_class}"}>
@@ -41,12 +42,6 @@
                   </span>
                 <% end %>
               </div>
-            </td>
-
-            <td class="px-4 py-4">
-              <.link navigate={~p"/tasks/#{task.id}"} class="text-primary-600 underline text-md hover:text-primary-700">
-                Ver
-              </.link>
             </td>
           </tr>
         <% end %>

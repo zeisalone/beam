@@ -7,6 +7,7 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
     task_name = Exercices.get_task_name(task_id)
     users = list_users_with_results(task_id)
     results = if task_id, do: Exercices.list_task_results(task_id), else: []
+    show_full_sequence? = Exercices.task_has_full_sequence?(task_id)
 
     {:ok,
      assign(socket,
@@ -19,7 +20,8 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
        selected_user_id: nil,
        selected_result_type: nil,
        sort_field: :inserted_at,
-       sort_order: :desc
+       sort_order: :desc,
+       show_full_sequence?: show_full_sequence?
      )}
   end
 
@@ -207,22 +209,25 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
         <table class="w-full border-collapse border border-gray-300">
           <thead>
             <tr class="bg-gray-200">
-              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="user_name">
+              <th class="border px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="user_name">
                 <div class="inline-flex items-center gap-1">
                   Paciente <%= sort_icon(@sort_field, @sort_order, :user_name) %>
                 </div>
               </th>
-              <th class="border border-gray-300 px-4 py-2">Tipo</th>
-              <th class="border border-gray-300 px-4 py-2">Corretas</th>
-              <th class="border border-gray-300 px-4 py-2">Erradas</th>
-              <th class="border border-gray-300 px-4 py-2">Omitidas</th>
-              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="accuracy">
+              <th class="border px-4 py-2">Tipo</th>
+              <th class="border px-4 py-2">Corretas</th>
+              <th class="border px-4 py-2">Erradas</th>
+              <th class="border px-4 py-2">Omitidas</th>
+              <th class="border px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="accuracy">
                 <div class="inline-flex items-center gap-1">
                   Precisão <%= sort_icon(@sort_field, @sort_order, :accuracy) %>
                 </div>
               </th>
-              <th class="border border-gray-300 px-4 py-2">Tempo de Reação</th>
-              <th class="border border-gray-300 px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="inserted_at">
+              <th class="border px-4 py-2">Tempo de Reação</th>
+              <%= if @show_full_sequence? do %>
+                <th class="border px-4 py-2">Sequências Completas</th>
+              <% end %>
+              <th class="border px-4 py-2 cursor-pointer" phx-click="sort_by" phx-value-field="inserted_at">
                 <div class="inline-flex items-center gap-1">
                   Data <%= sort_icon(@sort_field, @sort_order, :inserted_at) %>
                 </div>
@@ -231,15 +236,18 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
           </thead>
           <tbody>
             <%= for result <- @results do %>
-              <tr class="border border-gray-300">
-                <td class="border border-gray-300 px-4 py-2"><%= get_user_name(result.user_id) %></td>
-                <td class="border border-gray-300 px-4 py-2"><%= result.result_type %></td>
-                <td class="border border-gray-300 px-4 py-2"><%= result.correct %></td>
-                <td class="border border-gray-300 px-4 py-2"><%= result.wrong %></td>
-                <td class="border border-gray-300 px-4 py-2"><%= result.omitted %></td>
-                <td class="border border-gray-300 px-4 py-2"><%= Float.round(result.accuracy * 100, 2) %>%</td>
-                <td class="border border-gray-300 px-4 py-2"><%= Float.round(result.reaction_time / 1000, 2) %>s</td>
-                <td class="border border-gray-300 px-4 py-2"><%= format_date(result.inserted_at) %></td>
+              <tr class="border">
+                <td class="border px-4 py-2"><%= get_user_name(result.user_id) %></td>
+                <td class="border px-4 py-2"><%= result.result_type %></td>
+                <td class="border px-4 py-2"><%= result.correct %></td>
+                <td class="border px-4 py-2"><%= result.wrong %></td>
+                <td class="border px-4 py-2"><%= result.omitted %></td>
+                <td class="border px-4 py-2"><%= Float.round(result.accuracy * 100, 2) %>%</td>
+                <td class="border px-4 py-2"><%= Float.round(result.reaction_time / 1000, 2) %>s</td>
+                <%= if @show_full_sequence? do %>
+                  <td class="border px-4 py-2"><%= result.full_sequence || 0 %></td>
+                <% end %>
+                <td class="border px-4 py-2"><%= format_date(result.inserted_at) %></td>
               </tr>
             <% end %>
           </tbody>

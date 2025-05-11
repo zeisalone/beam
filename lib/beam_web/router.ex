@@ -59,6 +59,7 @@ defmodule BeamWeb.Router do
       live "/per_user", ResultsPerUserLive
       live "/aftertask", ResultsEndLive
       live "/per_exercise", ResultsPerExerciseLive
+      live "/per_category", ResultsPerCategoryLive
       live "/general", ResultsGeneralStatsLive
     end
   end

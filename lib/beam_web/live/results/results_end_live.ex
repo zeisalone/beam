@@ -25,7 +25,8 @@ defmodule BeamWeb.Results.ResultsEndLive do
           wrong: coalesce(r.wrong, 0),
           omitted: coalesce(r.omitted, 0),
           accuracy: coalesce(r.accuracy, 0.0),
-          reaction_time: coalesce(r.reaction_time, 0)
+          reaction_time: coalesce(r.reaction_time, 0),
+          full_sequence: r.full_sequence
         }
     )
   end
@@ -45,6 +46,12 @@ defmodule BeamWeb.Results.ResultsEndLive do
           <p class="text-xl text-gray-600 mt-2">
             <%= Float.round(result.accuracy * 100, 2) %>%
           </p>
+
+          <%= if not is_nil(result.full_sequence) do %>
+            <p class="text-sm text-gray-500 mt-1">
+              Total de sequências completas: <%= result.full_sequence %>
+            </p>
+          <% end %>
         </div>
 
         <details class="w-full max-w-md bg-gray-100 rounded shadow-md p-4 text-left">
@@ -55,6 +62,9 @@ defmodule BeamWeb.Results.ResultsEndLive do
             <p><strong>Respostas Omitidas:</strong> <%= result.omitted %></p>
             <p><strong>Precisão:</strong> <%= Float.round(result.accuracy * 100, 2) %>%</p>
             <p><strong>Tempo Médio de Reação:</strong> <%= Float.round(result.reaction_time / 1000, 2) %>s</p>
+            <%= if not is_nil(result.full_sequence) do %>
+              <p><strong>Sequências Completas Corretas:</strong> <%= result.full_sequence %></p>
+            <% end %>
           </div>
         </details>
       <% end %>

@@ -27,6 +27,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          correct: 0,
          wrong: 0,
          omitted: 0,
+         full_sequence: 0,
          attempts: 0,
          start_time: nil,
          total_reaction_time: 0,
@@ -70,10 +71,18 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     if socket.assigns.game_finished do
       {:noreply, socket}
     else
-      user_input =
+      padded_input =
         socket.assigns.user_input ++ List.duplicate(nil, length(socket.assigns.sequence) - length(socket.assigns.user_input))
+
       {correct, wrong, omitted} =
-        ReverseSequence.evaluate_individual_responses(user_input, socket.assigns.sequence)
+        ReverseSequence.evaluate_individual_responses(padded_input, socket.assigns.sequence)
+
+      was_full_correct =
+        Enum.all?(padded_input, &(!is_nil(&1) and &1 != "")) and
+          ReverseSequence.validate_response(padded_input, socket.assigns.sequence) == :correct
+
+      new_full_sequence =
+        if was_full_correct, do: socket.assigns.full_sequence + 1, else: socket.assigns.full_sequence
 
       reaction_time_ms = @response_timeout
       new_attempts = socket.assigns.attempts + 1
@@ -92,6 +101,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            wrong: new_wrong,
            omitted: new_omitted,
            total_reaction_time: new_total_reaction_time,
+           full_sequence: new_full_sequence,
            game_finished: true
          )}
       else
@@ -103,6 +113,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            correct: new_correct,
            wrong: new_wrong,
            omitted: new_omitted,
+           full_sequence: new_full_sequence,
            attempts: new_attempts,
            total_reaction_time: new_total_reaction_time,
            sequence: new_sequence,
@@ -167,6 +178,13 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     {correct, wrong, omitted} =
       ReverseSequence.evaluate_individual_responses(user_input, socket.assigns.sequence)
 
+    was_full_correct =
+      Enum.all?(user_input, &(!is_nil(&1) and &1 != "")) and
+        ReverseSequence.validate_response(user_input, socket.assigns.sequence) == :correct
+
+    new_full_sequence =
+      if was_full_correct, do: socket.assigns.full_sequence + 1, else: socket.assigns.full_sequence
+
     reaction_time = System.monotonic_time() - (socket.assigns.start_time || System.monotonic_time())
     reaction_time_ms = System.convert_time_unit(reaction_time, :native, :millisecond)
 
@@ -186,6 +204,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          wrong: new_wrong,
          omitted: new_omitted,
          total_reaction_time: new_total_reaction_time,
+         full_sequence: new_full_sequence,
          game_finished: true,
          timeout_ref: nil
        )}
@@ -198,6 +217,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          correct: new_correct,
          wrong: new_wrong,
          omitted: new_omitted,
+         full_sequence: new_full_sequence,
          attempts: new_attempts,
          total_reaction_time: new_total_reaction_time,
          sequence: new_sequence,
@@ -208,7 +228,6 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
        )}
     end
   end
-
 
   defp save_final_result(socket) do
     task_id = Beam.Exercices.TaskList.task_id(:reverse_sequence)
@@ -223,16 +242,16 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
         do: (socket.assigns.total_reaction_time / total_attempts) * sequence_length,
         else: 0
 
-        result_entry = %{
-          user_id: socket.assigns.user_id,
-          task_id: task_id,
-          correct: socket.assigns.correct,
-          wrong: socket.assigns.wrong,
-          omitted: socket.assigns.omitted,
-          accuracy: accuracy,
-          reaction_time: avg_reaction_time
-        }
-
+    result_entry = %{
+      user_id: socket.assigns.user_id,
+      task_id: task_id,
+      correct: socket.assigns.correct,
+      wrong: socket.assigns.wrong,
+      omitted: socket.assigns.omitted,
+      accuracy: accuracy,
+      reaction_time: avg_reaction_time,
+      full_sequence: socket.assigns.full_sequence
+    }
 
     case Repo.insert(Result.changeset(%Result{}, result_entry)) do
       {:ok, result} -> {task_id, result.id}
@@ -260,7 +279,6 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
                   <input
                     type="text"
                     name={"numbers[#{i}]"}
-
                     inputmode="numeric"
                     pattern="[0-9]"
                     maxlength="1"
