@@ -12,6 +12,9 @@ defmodule BeamWeb.UserProfileLive do
         user = Accounts.get_user!(current_user.id)
         email = Accounts.get_patient_email(user.id)
         age = if user.type == "Paciente", do: Accounts.get_patient_age(user.id), else: nil
+        education = if user.type == "Paciente", do: Accounts.get_patient_education(user.id), else: nil
+        gender = if user.type == "Paciente", do: Accounts.get_patient_gender(user.id), else: nil
+
 
         {:ok,
          assign(socket,
@@ -19,6 +22,8 @@ defmodule BeamWeb.UserProfileLive do
            email: email,
            full_screen?: false,
            age: age,
+           gender: gender,
+           education: education,
            open_help: false
          )}
     end
@@ -61,6 +66,20 @@ defmodule BeamWeb.UserProfileLive do
           </div>
         <% end %>
       </div>
+
+      <%= if @current_user.type == "Paciente" do %>
+        <div class="flex items-center justify-center space-x-6 text-gray-700 mt-2">
+          <div class="flex items-center space-x-2">
+            <img src="/images/profile/gender.svg" class="w-5 h-5" alt="Gender Icon">
+            <p><%= @gender %></p>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <img src="/images/profile/school.svg" class="w-5 h-5" alt="School Icon">
+            <p><%= @education %></p>
+          </div>
+        </div>
+      <% end %>
 
       <div class="p-4 border-t mx-8 mt-2">
         <div class="flex justify-center space-x-4">

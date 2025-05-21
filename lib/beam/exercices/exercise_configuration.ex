@@ -7,6 +7,7 @@ defmodule Beam.Exercices.ExerciseConfiguration do
     field :data, :map
     field :public, :boolean, default: false
     field :therapist_id, :string
+    field :hide, :boolean, default: false
 
     belongs_to :task, Beam.Exercices.Task
 
@@ -16,7 +17,7 @@ defmodule Beam.Exercices.ExerciseConfiguration do
   @doc false
   def changeset(config, attrs) do
     config
-    |> cast(attrs, [:name, :data, :public, :task_id, :therapist_id])
+    |> cast(attrs, [:name, :data, :public, :task_id, :therapist_id, :hide])
     |> validate_required([:name, :data, :task_id, :therapist_id])
   end
 end

@@ -26,6 +26,9 @@ defmodule BeamWeb.UserSettingsLive do
       |> assign(:selected_image, user.profile_image)
       |> assign(:full_screen?, false)
       |> assign(:confirm_delete_image, nil)
+      |> assign(:gender, (if user.type == "Paciente", do: Accounts.get_patient_gender(user.id), else: nil))
+      |> assign(:education_level, (if user.type == "Paciente", do: Accounts.get_patient_education(user.id), else: nil))
+
 
     {:ok, socket}
   end
@@ -159,6 +162,30 @@ defmodule BeamWeb.UserSettingsLive do
 
       {:error, _reason} ->
         {:noreply, put_flash(socket, :error, "Formato de data inválido.")}
+    end
+  end
+
+ def handle_event("update_gender", %{"gender" => gender}, socket) do
+    user = socket.assigns.current_user
+
+    case Accounts.update_patient_gender(user.id, gender) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :gender, gender) |> put_flash(:info, "Género atualizado!")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Erro ao atualizar género.")}
+    end
+  end
+
+  def handle_event("update_education", %{"education_level" => education}, socket) do
+    user = socket.assigns.current_user
+
+    case Accounts.update_patient_education(user.id, education) do
+      {:ok, _} ->
+        {:noreply, assign(socket, :education_level, education) |> put_flash(:info, "Escolaridade atualizada!")}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Erro ao atualizar escolaridade.")}
     end
   end
 
@@ -310,22 +337,49 @@ defmodule BeamWeb.UserSettingsLive do
       <% end %>
     </form>
 
-     <%= if @current_user.type == "Paciente" do %>
-        <div>
-          <h2 class="text-lg font-semibold mt-6">Data de Nascimento</h2>
-          <form phx-submit="update_birth_date">
+    <%= if @current_user.type == "Paciente" do %>
+      <div class="mt-6">
+        <h2 class="text-lg font-semibold mb-2">Informações do Paciente</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <form phx-submit="update_birth_date" class="flex flex-col">
+            <label class="text-sm font-semibold mb-1">Data de Nascimento</label>
             <input
               type="date"
               name="birth_date"
               value={@birth_date}
-              class="mt-2 border rounded p-2"
+              class="border rounded p-2"
             />
-            <button type="submit" class="ml-2 px-4 py-2 bg-gray-900 text-white rounded-lg font-semibold hover:shadow-lg">
+            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
+              Salvar
+            </button>
+          </form>
+
+          <form phx-submit="update_gender" class="flex flex-col">
+            <label class="text-sm font-semibold mb-1">Género</label>
+            <select name="gender" class="border rounded p-2">
+              <%= for g <- ["Masculino", "Feminino", "Outro"] do %>
+                <option value={g} selected={@gender == g}><%= g %></option>
+              <% end %>
+            </select>
+            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
+              Salvar
+            </button>
+          </form>
+
+          <form phx-submit="update_education" class="flex flex-col">
+            <label class="text-sm font-semibold mb-1">Escolaridade</label>
+            <select name="education_level" class="border rounded p-2">
+              <%= for e <- ["Pré-Primaria", "1º ciclo", "2º ciclo", "3º ciclo", "Secundário", "Universitário"] do %>
+                <option value={e} selected={@education_level == e}><%= e %></option>
+              <% end %>
+            </select>
+            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
               Salvar
             </button>
           </form>
         </div>
-      <% end %>
+      </div>
+    <% end %>
 
     <div class="space-y-12 divide-y">
       <div>

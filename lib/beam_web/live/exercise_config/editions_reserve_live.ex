@@ -1,14 +1,16 @@
 defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
+  alias BeamWeb.ExerciseConfig.Labels
   use BeamWeb, :live_view
 
   alias Beam.Exercices
   alias Beam.Accounts
+  alias Labels
 
   def mount(params, _session, socket) do
     current_user = socket.assigns.current_user
     task_id = Map.get(params, "task_id")
 
-    all_configs = Exercices.list_exercise_configurations_with_task()
+    all_configs = Exercices.list_visible_exercise_configurations_with_task()
 
     configs =
       case task_id do
@@ -24,15 +26,16 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
       end
 
     {:ok,
-    assign(socket,
-      configs: configs,
-      pacientes: pacientes,
-      current_user: current_user,
-      active_config_id: nil,
-      selected_config: nil,
-      selected_config_for_recommendation: nil,
-      full_screen?: false
-    )}
+     assign(socket,
+       configs: configs,
+       pacientes: pacientes,
+       current_user: current_user,
+       active_config_id: nil,
+       selected_config: nil,
+       selected_config_for_recommendation: nil,
+       full_screen?: false,
+       task_id: task_id
+     )}
   end
 
   def handle_event("open_patient_select", %{"config_id" => config_id}, socket) do
@@ -84,6 +87,22 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
     {:noreply, assign(socket, selected_config: nil)}
   end
 
+  def handle_event("hide_config", %{"config_id" => config_id}, socket) do
+    case Exercices.hide_exercise_configuration(config_id) do
+      {:ok, _} ->
+        updated = Exercices.list_visible_exercise_configurations_with_task()
+        filtered =
+          case socket.assigns.task_id do
+            nil -> updated
+            id -> Enum.filter(updated, &("#{&1.task_id}" == id))
+          end
+        {:noreply, assign(socket, configs: filtered)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Erro ao esconder configuração.")}
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div class="max-w-screen-lg mx-auto">
@@ -100,7 +119,20 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
           <tbody>
             <%= for config <- @configs do %>
               <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
-                <td class="px-4 py-3 font-medium truncate"><%= config.name %></td>
+                <td class="px-4 py-3 font-medium truncate">
+                  <div class="flex items-center gap-2">
+                    <%= config.name %>
+                    <button
+                      type="button"
+                      phx-click="hide_config"
+                      phx-value-config_id={config.id}
+                      data-confirm="Tem a certeza que quer apagar esta configuração?"
+                      class="text-red-600 hover:text-red-800"
+                    >
+                      <img src="/images/trash.svg" alt="Apagar" class="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
                 <td class="px-4 py-3 text-blue-600 text-sm">
                   <div class="flex gap-4">
                     <%= if @current_user.type == "Terapeuta" do %>
@@ -136,7 +168,7 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
             <div class="max-h-96 overflow-y-auto text-sm">
               <%= for {key, val} <- @selected_config.data do %>
                 <div class="mb-2">
-                  <span class="font-semibold"><%= key %>:</span>
+                  <span class="font-semibold"><%= Labels.label_for(key) %>:</span>
                   <span><%= inspect(val) %></span>
                 </div>
               <% end %>

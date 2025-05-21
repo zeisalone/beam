@@ -389,7 +389,7 @@ defmodule Beam.Exercices do
   end
 
   def list_exercise_configurations_with_task do
-    Beam.Repo.all(
+    Repo.all(
       from c in ExerciseConfiguration,
         join: t in assoc(c, :task),
         preload: [task: t],
@@ -397,11 +397,31 @@ defmodule Beam.Exercices do
     )
   end
 
+  def list_visible_exercise_configurations_with_task do
+    Repo.all(
+      from c in ExerciseConfiguration,
+        where: not coalesce(c.hide, false),
+        join: t in assoc(c, :task),
+        preload: [task: t],
+        order_by: [desc: c.inserted_at]
+    )
+  end
+
+  def hide_exercise_configuration(config_id) do
+    case Repo.get(ExerciseConfiguration, config_id) do
+      nil -> {:error, :not_found}
+      config ->
+        config
+        |> Ecto.Changeset.change(%{hide: true})
+        |> Repo.update()
+    end
+  end
+
   def recommend_custom_configuration(%{
-    config_id: config_id,
-    patient_id: patient_id,
-    therapist_id: therapist_id
-  }) do
+        config_id: config_id,
+        patient_id: patient_id,
+        therapist_id: therapist_id
+      }) do
     config = Repo.get!(ExerciseConfiguration, config_id)
 
     %Recommendation{}

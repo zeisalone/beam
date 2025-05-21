@@ -58,7 +58,8 @@ defmodule BeamWeb.Tasks.MathOperationLive do
          phase: :waiting,
          start_time: nil,
          equation_display_time: equation_display_time,
-         answer_time_limit: answer_time_limit
+         answer_time_limit: answer_time_limit,
+         timer_ref: nil
        )}
     else
       {:ok, push_navigate(socket, to: "/users/log_in")}
@@ -84,14 +85,20 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
   @impl true
   def handle_info(:show_equation, socket) do
-    Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
-    {:noreply, assign(socket, phase: :show_equation)}
+    ref = Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
+    {:noreply, assign(socket, phase: :show_equation, timer_ref: ref)}
   end
 
   @impl true
   def handle_info(:show_options, socket) do
-    Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
-    {:noreply, assign(socket, phase: :show_options, start_time: System.system_time(:millisecond))}
+    ref = Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
+
+    {:noreply,
+     assign(socket,
+       phase: :show_options,
+       start_time: System.system_time(:millisecond),
+       timer_ref: ref
+     )}
   end
 
   @impl true
@@ -104,6 +111,8 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   end
 
   defp handle_omission(socket) do
+    Process.cancel_timer(socket.assigns.timer_ref)
+
     current_index = socket.assigns.current_question_index
     total_questions = socket.assigns.total_questions
     total_reaction_time = socket.assigns.total_reaction_time + socket.assigns.answer_time_limit
@@ -117,6 +126,8 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
   @impl true
   def handle_event("submit_answer", %{"answer" => answer}, socket) do
+    Process.cancel_timer(socket.assigns.timer_ref)
+
     reaction_time = System.system_time(:millisecond) - socket.assigns.start_time
     user_answer = String.to_integer(answer)
 
@@ -138,11 +149,13 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   end
 
   defp next_question(socket, updates) do
+    Process.cancel_timer(socket.assigns.timer_ref)
+
     current_index = socket.assigns.current_question_index + 1
     {new_a, new_b, new_operator, new_result, new_options} =
       Enum.at(socket.assigns.questions, current_index)
 
-    Process.send_after(self(), :show_equation, socket.assigns.equation_display_time)
+    ref = Process.send_after(self(), :show_equation, socket.assigns.equation_display_time)
 
     {:noreply,
      assign(socket,
@@ -153,7 +166,8 @@ defmodule BeamWeb.Tasks.MathOperationLive do
        result: new_result,
        options: new_options,
        phase: :waiting,
-       start_time: nil
+       start_time: nil,
+       timer_ref: ref
      )
      |> assign(updates)}
   end

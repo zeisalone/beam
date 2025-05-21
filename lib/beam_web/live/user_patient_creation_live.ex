@@ -20,6 +20,8 @@ defmodule BeamWeb.UserPatientCreationLive do
         <.input field={@form[:password]} type="password" label="Palavra-passe" required />
         <.input field={@form[:type]} type="select" label="Tipo" options={["Paciente"]} required />
         <.input field={@form[:birth_date]} type="date" label="Data de Nascimento" required />
+        <.input field={@form[:gender]} type="select" label="Género" options={["Masculino", "Feminino", "Outro"]} required />
+        <.input field={@form[:education_level]} type="select" label="Escolaridade" options={["Pré-Primaria", "1º ciclo", "2º ciclo", "3º ciclo", "Secundário", "Universitário"]} required />
         <.input
           field={@form[:therapist_id]}
           type="select"
@@ -63,6 +65,8 @@ defmodule BeamWeb.UserPatientCreationLive do
     case Date.from_iso8601(user_params["birth_date"]) do
       {:ok, birth_date} ->
         updated_params = Map.put(user_params, "birth_date", birth_date)
+        gender = user_params["gender"] || "Masculino"
+        education_level = user_params["education_level"] || "Pré-Primaria"
         case Accounts.register_user(updated_params) do
           {:ok, user} ->
             {:ok, _} =
@@ -78,7 +82,7 @@ defmodule BeamWeb.UserPatientCreationLive do
               |> assign(trigger_submit: true, patient_created: true, created_user: user)
               |> assign_form(changeset)
 
-            case Accounts.verify_user_type(user.id, user_params["therapist_id"], birth_date) do
+            case Accounts.verify_user_type(user.id, user_params["therapist_id"], birth_date, gender, education_level) do
               {:ok, :ok} ->
                 {:noreply, push_navigate(socket, to: ~p"/dashboard")}
 

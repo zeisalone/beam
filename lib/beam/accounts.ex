@@ -80,7 +80,7 @@ defmodule Beam.Accounts do
     |> Repo.insert()
   end
 
-  def verify_user_type(user_id, therapist_id \\ nil, birth_date \\ nil) do
+  def verify_user_type(user_id, therapist_id \\ nil, birth_date \\ nil, gender \\ "Masculino", education_level \\ "Pré-Primaria") do
     Repo.transaction(fn ->
       user = Repo.get!(User, user_id)
 
@@ -98,31 +98,29 @@ defmodule Beam.Accounts do
 
         "Paciente" when not is_nil(therapist_id) ->
           patient_id = UUID.uuid4()
-
           case Repo.get_by(Therapist, therapist_id: therapist_id) do
             nil ->
               Repo.rollback("Therapist with ID #{therapist_id} not found.")
 
             therapist ->
-              case Repo.insert(
-                     %Patient{}
-                     |> Patient.changeset(%{
-                       user_id: user.id,
-                       patient_id: patient_id,
-                       therapist_id: therapist.therapist_id,
-                       birth_date: birth_date
-                     })
-                   ) do
-                {:ok, _patient} -> :ok
+              case Repo.insert(%Patient{}
+                |> Patient.changeset(%{
+                  user_id: user.id,
+                  patient_id: patient_id,
+                  therapist_id: therapist.therapist_id,
+                  birth_date: birth_date,
+                  gender: gender,
+                  education_level: education_level
+                })) do
+                {:ok, _} -> :ok
                 {:error, reason} -> Repo.rollback(reason)
               end
           end
 
         "Paciente" ->
-          Repo.rollback("Therapist ID must be provided for patients.")
+          Repo.rollback("Therapist ID is required for patients.")
 
-        _ ->
-          :ok
+        _ -> :ok
       end
     end)
     |> case do
@@ -442,6 +440,49 @@ defmodule Beam.Accounts do
         )
     end
   end
+
+  def update_patient_gender(user_id, gender) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> {:error, :not_found}
+      patient ->
+        patient
+        |> Ecto.Changeset.change(gender: gender)
+        |> Repo.update()
+    end
+  end
+
+  def update_patient_education(user_id, education) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> {:error, :not_found}
+      patient ->
+        patient
+        |> Ecto.Changeset.change(education_level: education)
+        |> Repo.update()
+    end
+  end
+
+  def get_patient_gender(user_id) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> nil
+      patient -> patient.gender
+    end
+  end
+
+  def get_patient_education(user_id) do
+    case Repo.get_by(Beam.Accounts.Patient, user_id: user_id) do
+      nil -> nil
+      patient -> patient.education_level
+    end
+  end
+
+  def update_patient_info(user_id, attrs) do
+    with %Patient{} = patient <- Repo.get_by(Patient, user_id: user_id) do
+      patient
+      |> Ecto.Changeset.change(attrs)
+      |> Repo.update()
+    end
+  end
+
 
   def list_terapeutas do
     Repo.all(

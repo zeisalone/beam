@@ -10,19 +10,24 @@ defmodule BeamWeb.PatientProfileLive do
 
       %{user: user} = patient ->
         full_user = Accounts.get_user!(user.id)
+
         age = Accounts.get_patient_age(full_user.id)
         email = Accounts.get_patient_email(full_user.id)
+        gender = Accounts.get_patient_gender(full_user.id)
+        education = Accounts.get_patient_education(full_user.id)
 
         {:ok,
-         assign(socket,
-           patient: %{patient | user: full_user},
-           user_id: full_user.id,
-           patient_id: patient.id,
-           age: age,
-           full_screen?: false,
-           open_help: false,
-           email: email
-         )}
+        assign(socket,
+          patient: %{patient | user: full_user},
+          user_id: full_user.id,
+          patient_id: patient.id,
+          age: age,
+          gender: gender,
+          education: education,
+          full_screen?: false,
+          open_help: false,
+          email: email
+        )}
     end
   end
 
@@ -59,6 +64,18 @@ defmodule BeamWeb.PatientProfileLive do
         <div class="flex items-center space-x-2">
           <img src="/images/profile/cake.svg" class="w-5 h-5" alt="Cake Icon">
           <p><%= @age %> anos</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-center space-x-6 text-gray-700 mt-2">
+        <div class="flex items-center space-x-2">
+          <img src="/images/profile/gender.svg" class="w-5 h-5" alt="Gender Icon">
+          <p><%= @gender %></p>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <img src="/images/profile/school.svg" class="w-5 h-5" alt="School Icon">
+          <p><%= @education %></p>
         </div>
       </div>
 
