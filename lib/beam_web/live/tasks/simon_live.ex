@@ -5,14 +5,24 @@ defmodule BeamWeb.Tasks.SimonLive do
   alias Beam.Repo
 
   @sequence_delay 600
-  @max_duration Simon.time_limit_ms()
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user")
-    difficulty = ensure_difficulty(Map.get(session, "difficulty"))
     live_action = Map.get(session, "live_action") |> to_existing_atom(:training)
+    difficulty = Map.get(session, "difficulty") |> to_existing_atom(:medio)
     task_id = Map.get(session, "task_id")
     full_screen = Map.get(session, "full_screen?", true)
+    raw_config = Map.get(session, "config")
+
+    {difficulty_or_config, max_duration} =
+      case {live_action, difficulty} do
+        {:training, :criado} when is_map(raw_config) ->
+          config = Map.merge(Simon.default_config(), atomize_keys(raw_config))
+          {config, Simon.time_limit_ms(config)}
+
+        _ ->
+          {difficulty, Simon.time_limit_ms()}
+      end
 
     if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
 
@@ -22,6 +32,7 @@ defmodule BeamWeb.Tasks.SimonLive do
        user_id: current_user.id,
        task_id: task_id,
        difficulty: difficulty,
+       difficulty_or_config: difficulty_or_config,
        live_action: live_action,
        full_screen?: full_screen,
        preparing_task: true,
@@ -36,7 +47,7 @@ defmodule BeamWeb.Tasks.SimonLive do
        calculating_results: false,
        start_time: nil,
        shake_error?: false,
-       time_remaining: @max_duration,
+       time_remaining: max_duration,
        timer_ref: nil
      )}
   end
@@ -47,10 +58,11 @@ defmodule BeamWeb.Tasks.SimonLive do
   end
 
   def handle_info(:start_game, socket) do
-    colors = Simon.generate_colors(socket.assigns.difficulty)
+    config = socket.assigns.difficulty_or_config
+    colors = Simon.generate_colors(config)
     sequence = [Enum.random(0..(length(colors) - 1))]
     {:ok, timer} = :timer.send_interval(1000, self(), :tick)
-    Process.send_after(self(), :timeout, @max_duration)
+    Process.send_after(self(), :timeout, Simon.time_limit_ms(config))
 
     {:noreply,
      assign(socket,
@@ -124,8 +136,7 @@ defmodule BeamWeb.Tasks.SimonLive do
           socket.assigns.difficulty
         )
 
-      {:error, _} ->
-        :noop
+      {:error, _} -> :noop
     end
 
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{socket.assigns.task_id}")}
@@ -153,9 +164,7 @@ defmodule BeamWeb.Tasks.SimonLive do
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
   end
 
-  def handle_event("button_click", %{"index" => _}, %{assigns: %{locked_buttons: true}} = socket) do
-    {:noreply, socket}
-  end
+  def handle_event("button_click", %{"index" => _}, %{assigns: %{locked_buttons: true}} = socket), do: {:noreply, socket}
 
   def handle_event("button_click", %{"index" => index_str}, socket) do
     index = String.to_integer(index_str)
@@ -165,7 +174,7 @@ defmodule BeamWeb.Tasks.SimonLive do
 
     if input == expected do
       if length(input) == length(socket.assigns.sequence) do
-        if Simon.finished?(socket.assigns.correct + 1) do
+        if Simon.finished?(socket.assigns.correct + 1, socket.assigns.difficulty_or_config) do
           send(self(), :save_results)
 
           {:noreply,
@@ -256,7 +265,7 @@ defmodule BeamWeb.Tasks.SimonLive do
         <% else %>
           <div class="flex flex-col items-center space-y-6">
             <div class="flex space-x-2">
-              <%= for i <- 1..7 do %>
+              <%= for i <- 1..sequence_length(@difficulty_or_config) do %>
                 <div class={"w-4 h-4 rounded-full border-2 #{dot_class(i, @correct, @shake_error?)}"}></div>
               <% end %>
             </div>
@@ -277,6 +286,9 @@ defmodule BeamWeb.Tasks.SimonLive do
     </div>
     """
   end
+
+  defp sequence_length(%{sequence_length: len}), do: len
+  defp sequence_length(_), do: 7
 
   defp grid_class(colors) do
     case length(colors) do
@@ -307,7 +319,6 @@ defmodule BeamWeb.Tasks.SimonLive do
   defp dot_class(_, _, _), do: "bg-gray-300"
 
   defp to_existing_atom(nil, default), do: default
-
   defp to_existing_atom(str, default) when is_binary(str) do
     try do
       String.to_existing_atom(str)
@@ -315,14 +326,12 @@ defmodule BeamWeb.Tasks.SimonLive do
       _ -> default
     end
   end
-
   defp to_existing_atom(val, _default), do: val
 
-  defp ensure_difficulty(value) do
-    to_existing_atom(value, :medio)
-    |> case do
-      x when x in [:facil, :medio, :dificil] -> x
-      _ -> :medio
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
     end
   end
 end

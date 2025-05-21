@@ -6,20 +6,31 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
   @total_questions 10
   @initial_pause 1000
-  @equation_display_time 2000
-  @answer_time_limit 4000
 
   @impl true
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
-
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty", "medio") |> maybe_to_atom()
     full_screen = Map.get(session, "full_screen?", true)
 
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(
+        MathOperation.default_config(),
+        case raw_config do
+          map when is_map(map) -> atomize_keys(map)
+          _ -> %{}
+        end
+      )
+
+    equation_display_time = Map.get(config, :equation_display_time, 2000)
+    answer_time_limit = Map.get(config, :answer_time_limit, 4000)
+
     if current_user do
-      questions = for _ <- 1..@total_questions, do: MathOperation.generate_question(difficulty)
+      questions = build_questions(difficulty, config)
       {first_a, first_b, first_operator, first_result, first_options} = Enum.at(questions, 0)
 
       if connected?(socket), do: Process.send_after(self(), :show_equation, @initial_pause)
@@ -45,22 +56,41 @@ defmodule BeamWeb.Tasks.MathOperationLive do
          options: first_options,
          full_screen?: full_screen,
          phase: :waiting,
-         start_time: nil
+         start_time: nil,
+         equation_display_time: equation_display_time,
+         answer_time_limit: answer_time_limit
        )}
     else
       {:ok, push_navigate(socket, to: "/users/log_in")}
     end
   end
 
+  defp build_questions(:criado, config),
+    do: (for _ <- 1..@total_questions, do: MathOperation.generate_question(:criado, config))
+
+  defp build_questions(level, _config),
+    do: (for _ <- 1..@total_questions, do: MathOperation.generate_question(level))
+
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
+    end
+  end
+
+  defp maybe_to_atom(nil), do: nil
+  defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
+  defp maybe_to_atom(_), do: nil
+
   @impl true
   def handle_info(:show_equation, socket) do
-    Process.send_after(self(), :show_options, @equation_display_time)
+    Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
     {:noreply, assign(socket, phase: :show_equation)}
   end
 
   @impl true
   def handle_info(:show_options, socket) do
-    Process.send_after(self(), :timeout, @answer_time_limit)
+    Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
     {:noreply, assign(socket, phase: :show_options, start_time: System.system_time(:millisecond))}
   end
 
@@ -76,7 +106,7 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   defp handle_omission(socket) do
     current_index = socket.assigns.current_question_index
     total_questions = socket.assigns.total_questions
-    total_reaction_time = socket.assigns.total_reaction_time + @answer_time_limit
+    total_reaction_time = socket.assigns.total_reaction_time + socket.assigns.answer_time_limit
 
     if current_index + 1 >= total_questions do
       save_results(socket.assigns.correct, socket.assigns.wrong, socket.assigns.omitted + 1, total_reaction_time, socket)
@@ -112,7 +142,7 @@ defmodule BeamWeb.Tasks.MathOperationLive do
     {new_a, new_b, new_operator, new_result, new_options} =
       Enum.at(socket.assigns.questions, current_index)
 
-    Process.send_after(self(), :show_equation, @equation_display_time)
+    Process.send_after(self(), :show_equation, socket.assigns.equation_display_time)
 
     {:noreply,
      assign(socket,
@@ -166,10 +196,6 @@ defmodule BeamWeb.Tasks.MathOperationLive do
         {:noreply, put_flash(socket, :error, "Erro ao salvar resultado.")}
     end
   end
-
-  defp maybe_to_atom(nil), do: nil
-  defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
-  defp maybe_to_atom(_), do: nil
 
   @impl true
   def render(assigns) do

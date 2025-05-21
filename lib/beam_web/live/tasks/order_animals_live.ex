@@ -4,16 +4,22 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
   alias Beam.Exercices.Result
   alias Beam.Repo
 
-  @total_rounds 5
-  @animal_total_time 2000
+
   @slide_duration 400
-  @slide_out_delay @animal_total_time - @slide_duration
 
   def mount(_params, session, socket) do
     current_user = session["current_user"]
     task_id = session["task_id"]
     live_action = session["live_action"] |> maybe_to_atom() || :training
     difficulty = session["difficulty"] |> maybe_to_atom() || :medio
+    raw_config = session["config"] || %{}
+
+    config =
+      if is_map(raw_config) do
+        Map.merge(OrderAnimals.default_config(), atomize_keys(raw_config))
+      else
+        OrderAnimals.default_config()
+      end
 
     if connected?(socket), do: Process.send_after(self(), :start_round, 1000)
 
@@ -40,13 +46,19 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
        full_sequence: 0,
        total_reaction_time: 0,
        current_start_time: nil,
-       game_finished: false
+       game_finished: false,
+       config: config
      )}
   end
 
   def handle_info(:start_round, socket) do
+    level_or_config =
+      if socket.assigns.difficulty == :criado,
+        do: socket.assigns.config,
+        else: socket.assigns.difficulty
+
     %{target_sequence: seq, shuffled_options: opts} =
-      OrderAnimals.generate_target_sequence(socket.assigns.difficulty)
+      OrderAnimals.generate_target_sequence(level_or_config)
       |> OrderAnimals.generate_phase()
 
     Process.send_after(self(), {:show_animal, 0}, 1000)
@@ -69,15 +81,17 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
 
     if idx < length(seq) do
       animal = Enum.at(seq, idx)
+      animal_time = socket.assigns.config.animal_total_time
+      slide_out_delay = animal_time - @slide_duration
 
       socket = assign(socket, current_animal: animal, animating_out?: false)
 
-      Process.send_after(self(), :animate_out, @slide_out_delay)
-      Process.send_after(self(), {:show_animal, idx + 1}, @animal_total_time)
+      Process.send_after(self(), :animate_out, slide_out_delay)
+      Process.send_after(self(), {:show_animal, idx + 1}, animal_time)
 
       {:noreply, socket}
     else
-      Process.send_after(self(), :hide_sequence, @animal_total_time)
+      Process.send_after(self(), :hide_sequence, socket.assigns.config.animal_total_time)
       {:noreply, assign(socket, current_animal: nil, animating_out?: false)}
     end
   end
@@ -152,7 +166,12 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
       round_index: socket.assigns.round_index + 1
     }
 
-    if updated.round_index >= @total_rounds do
+    total_rounds =
+      if socket.assigns.difficulty == :criado,
+        do: socket.assigns.config.total_rounds,
+        else: 5
+
+    if updated.round_index >= total_rounds do
       send(self(), :save_results)
       {:noreply, assign(socket, updated |> Map.put(:game_finished, true))}
     else
@@ -187,6 +206,13 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(val) when is_binary(val), do: String.to_existing_atom(val)
   defp maybe_to_atom(val), do: val
+
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
+    end
+  end
 
   defp animal_svg(animal) do
     path = Path.join(:code.priv_dir(:beam), "static/images/animals/#{animal}.svg")

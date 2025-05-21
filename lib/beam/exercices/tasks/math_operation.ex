@@ -1,9 +1,47 @@
 defmodule Beam.Exercices.Tasks.MathOperation do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Lógica para a tarefa de operações matemáticas, com suporte a diferentes dificuldades.
   """
 
-  def generate_question(:facil) do
+  @impl true
+  def default_config do
+    %{
+      equation_display_time: 2000,
+      answer_time_limit: 4000,
+      max_value: 100,
+      operations: "Ambas"
+    }
+  end
+
+  @impl true
+  def config_spec do
+    [
+      {:equation_display_time, :integer, label: "Tempo de Exibição da Equação (ms)"},
+      {:answer_time_limit, :integer, label: "Tempo para Responder (ms)"},
+      {:max_value, :integer, label: "Valor Máximo nas Operações"},
+      {:operations, :select, label: "Tipo de Operações", options: ["Somar", "Ambas"]}
+    ]
+  end
+
+  @impl true
+  def validate_config(%{
+        equation_display_time: eq_time,
+        answer_time_limit: ans_time,
+        max_value: max,
+        operations: ops
+      })
+      when is_integer(eq_time) and eq_time > 0 and
+           is_integer(ans_time) and ans_time > 0 and
+           is_integer(max) and max > 0 and
+           ops in ["Somar", "Ambas"] do
+    :ok
+  end
+
+  def validate_config(_), do: {:error, %{message: "Parâmetros inválidos"}}
+
+  def generate_question(:criado, config), do: generate_question_from_config(config)
+  def generate_question(:facil, _config) do
     a = :rand.uniform(9)
     b = :rand.uniform(9)
     correct_answer = a + b
@@ -11,9 +49,17 @@ defmodule Beam.Exercices.Tasks.MathOperation do
     {a, b, "+", correct_answer, options}
   end
 
-  def generate_question(:medio) do
-    a = :rand.uniform(75)
-    b = :rand.uniform(75)
+  def generate_question(:medio, _config), do: generate_question_default_range(75)
+  def generate_question(:dificil, _config), do: generate_question_default_range(150)
+  def generate_question(:criado), do: generate_question(:criado, default_config())
+  def generate_question(:facil), do: generate_question(:facil, nil)
+  def generate_question(:medio), do: generate_question(:medio, nil)
+  def generate_question(:dificil), do: generate_question(:dificil, nil)
+  def generate_question(_), do: generate_question(:medio, nil)
+
+  defp generate_question_default_range(max) do
+    a = :rand.uniform(max)
+    b = :rand.uniform(max)
     operation = Enum.random([:soma, :subtracao])
 
     {a, b, operator, correct_answer} =
@@ -26,10 +72,18 @@ defmodule Beam.Exercices.Tasks.MathOperation do
     {a, b, operator, correct_answer, options}
   end
 
-  def generate_question(:dificil) do
-    a = :rand.uniform(150)
-    b = :rand.uniform(150)
-    operation = Enum.random([:soma, :subtracao])
+  defp generate_question_from_config(%{
+         max_value: max,
+         operations: ops
+       }) do
+    a = Enum.random(1..max)
+    b = Enum.random(1..max)
+
+    operation =
+      case ops do
+        "Somar" -> :soma
+        "Ambas" -> Enum.random([:soma, :subtracao])
+      end
 
     {a, b, operator, correct_answer} =
       case operation do
@@ -37,13 +91,9 @@ defmodule Beam.Exercices.Tasks.MathOperation do
         :subtracao -> {max(a, b), min(a, b), "-", abs(a - b)}
       end
 
-    options = generate_options(correct_answer, :dificil)
+    options = generate_options(correct_answer, :medio)
     {a, b, operator, correct_answer, options}
   end
-
-  def generate_question(:teste), do: generate_question(:medio)
-  def generate_question(:criado), do: generate_question(:medio)
-  def generate_question(_), do: generate_question(:medio)
 
   defp generate_options(correct_answer, difficulty) do
     range =

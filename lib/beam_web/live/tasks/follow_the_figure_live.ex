@@ -5,29 +5,29 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
   alias Beam.Exercices.Result
   alias Beam.Repo
 
-  @total_rounds 20
-  @initial_time 15_000
-  @gain_time 4_000
-  @penalty_time 2_000
+  @default_config %{
+    total_rounds: 20,
+    initial_time: 15_000,
+    gain_time: 4_000,
+    penalty_time: 2_000
+  }
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user")
     task_id = Map.get(session, "task_id")
     live_action = Map.get(session, "live_action", "training") |> String.to_existing_atom()
     full_screen = Map.get(session, "full_screen?", true)
+    raw_config = Map.get(session, "config", %{})
+
     difficulty =
       case live_action do
-        :training ->
-          Map.get(session, "difficulty", "medio") |> String.to_existing_atom()
-
-        :test ->
-          :medio
+        :training -> Map.get(session, "difficulty", "medio") |> String.to_existing_atom()
+        :test -> :medio
       end
 
+    config = Map.merge(@default_config, if(is_map(raw_config), do: atomize_keys(raw_config), else: %{}))
 
-    if connected?(socket) do
-      send(self(), :start_intro)
-    end
+    if connected?(socket), do: send(self(), :start_intro)
 
     {:ok,
      assign(socket,
@@ -36,7 +36,7 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
        difficulty: difficulty,
        live_action: live_action,
        round: 1,
-       time_left: @initial_time,
+       time_left: config.initial_time,
        target: nil,
        distractors: [],
        clicked: false,
@@ -49,19 +49,14 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
        show_intro: true,
        full_screen?: full_screen,
        last_feedback: nil,
-       finished: false
+       finished: false,
+       config: config
      )}
   end
 
   def handle_info(:tick, socket) do
     new_time = max(socket.assigns.time_left - 1000, 0)
-
-    if new_time == 0 do
-      send(self(), :timeout)
-    else
-      Process.send_after(self(), :tick, 1000)
-    end
-
+    if new_time == 0, do: send(self(), :timeout), else: Process.send_after(self(), :tick, 1000)
     {:noreply, assign(socket, time_left: new_time)}
   end
 
@@ -71,11 +66,14 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
   end
 
   def handle_info(:start_round, socket) do
-    round_data = FollowTheFigure.generate_round(socket.assigns.round, socket.assigns.difficulty)
+    level_or_config =
+      if socket.assigns.difficulty == :criado,
+        do: socket.assigns.config,
+        else: socket.assigns.difficulty
 
-    if socket.assigns.round == 1 do
-      Process.send_after(self(), :tick, 1000)
-    end
+    round_data = FollowTheFigure.generate_round(socket.assigns.round, level_or_config)
+
+    if socket.assigns.round == 1, do: Process.send_after(self(), :tick, 1000)
 
     {:noreply,
      assign(socket,
@@ -89,66 +87,53 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
   end
 
   def handle_info(:timeout, socket) do
-    current_round = socket.assigns.round
-    omitted_remaining = max(@total_rounds - (current_round - 1), 0)
-
-    save_results(
-      socket.assigns.correct,
-      socket.assigns.wrong,
-      socket.assigns.omitted + omitted_remaining,
-      socket.assigns.total_reaction_time,
-      socket
-    )
+    omitted_remaining = max(socket.assigns.config.total_rounds - (socket.assigns.round - 1), 0)
+    save_results(socket.assigns.correct, socket.assigns.wrong, socket.assigns.omitted + omitted_remaining, socket.assigns.total_reaction_time, socket)
   end
 
   def handle_event("select", %{"shape" => shape, "color" => color}, socket) do
     reaction_time = System.monotonic_time() - socket.assigns.round_start |> System.convert_time_unit(:native, :millisecond)
     result = FollowTheFigure.validate_selection(%{shape: shape, color: color}, socket.assigns.target)
 
-    socket =
-      assign(socket,
-        clicked: true,
-        last_feedback: result
-      )
-
+    socket = assign(socket, clicked: true, last_feedback: result)
     advance_round(result, reaction_time, socket)
   end
 
   defp advance_round(result, reaction_time, socket) do
+    %{gain_time: gain, penalty_time: penalty, total_rounds: total_rounds} = socket.assigns.config
+
     updates =
       case result do
-        :correct -> %{correct: socket.assigns.correct + 1, time_left: socket.assigns.time_left + @gain_time}
-        :wrong -> %{wrong: socket.assigns.wrong + 1, time_left: max(socket.assigns.time_left - @penalty_time, 0)}
+        :correct -> %{correct: socket.assigns.correct + 1, time_left: socket.assigns.time_left + gain}
+        :wrong -> %{wrong: socket.assigns.wrong + 1, time_left: max(socket.assigns.time_left - penalty, 0)}
       end
 
     new_results = [%{result: result, time: reaction_time} | socket.assigns.results]
     round = socket.assigns.round + 1
 
-    cond do
-      round > @total_rounds ->
-        save_results(
-          updates[:correct] || socket.assigns.correct,
-          updates[:wrong] || socket.assigns.wrong,
-          socket.assigns.omitted,
-          socket.assigns.total_reaction_time,
-          socket
-        )
+    if round > total_rounds do
+      save_results(
+        updates[:correct] || socket.assigns.correct,
+        updates[:wrong] || socket.assigns.wrong,
+        socket.assigns.omitted,
+        socket.assigns.total_reaction_time + reaction_time,
+        socket
+      )
+    else
+      Process.send_after(self(), :start_round, 500)
 
-      true ->
-        Process.send_after(self(), :start_round, 500)
-
-        {:noreply,
-         assign(socket,
-           round: round,
-           total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
-           results: new_results
-         )
-         |> assign(updates)}
+      {:noreply,
+       assign(socket,
+         round: round,
+         total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
+         results: new_results
+       ) |> assign(updates)}
     end
   end
 
   defp save_results(correct, wrong, omitted, total_reaction_time, socket) do
-    accuracy = correct / @total_rounds
+    total = socket.assigns.config.total_rounds
+    accuracy = correct / total
     avg_reaction_time = if correct > 0, do: total_reaction_time / correct, else: 0
 
     result_entry = %{
@@ -166,22 +151,18 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
     case Repo.insert(changeset) do
       {:ok, result} ->
         case socket.assigns.live_action do
-          :test ->
-            Beam.Exercices.save_test_attempt(socket.assigns.user_id, socket.assigns.task_id, result.id)
-
-          :training ->
-            Beam.Exercices.save_training_attempt(
-              socket.assigns.user_id,
-              socket.assigns.task_id,
-              result.id,
-              socket.assigns.difficulty
-            )
+          :test -> Beam.Exercices.save_test_attempt(socket.assigns.user_id, socket.assigns.task_id, result.id)
+          :training -> Beam.Exercices.save_training_attempt(socket.assigns.user_id, socket.assigns.task_id, result.id, socket.assigns.difficulty)
         end
-
         {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{socket.assigns.task_id}")}
+      {:error, _} -> {:noreply, put_flash(socket, :error, "Erro ao salvar resultado.")}
+    end
+  end
 
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, "Erro ao salvar resultado.")}
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
     end
   end
 
@@ -256,7 +237,11 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
                 :wrong -> "text-red-400 animate-fade-down"
               end
             }>
-              <%= if @last_feedback == :correct, do: "+4", else: "-2" %>
+              <%= if @last_feedback == :correct do %>
+                +<%= round(@config.gain_time / 1000) %>
+              <% else %>
+                -<%= round(@config.penalty_time / 1000) %>
+              <% end %>
             </div>
           <% end %>
         </div>

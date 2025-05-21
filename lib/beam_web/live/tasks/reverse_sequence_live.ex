@@ -4,15 +4,27 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @sequence_duration 7500
-  @response_timeout 10_000
-  @total_attempts 5
+  @default_sequence_duration 7500
+  @default_response_timeout 10_000
+  @default_total_attempts 5
+  @default_sequence_length 5
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(
+        ReverseSequence.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    sequence_duration = Map.get(config, :sequence_duration, @default_sequence_duration)
+    response_timeout = Map.get(config, :response_timeout, @default_response_timeout)
+    total_attempts = Map.get(config, :total_attempts, @default_total_attempts)
 
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :start_round, 500)
@@ -37,10 +49,21 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          show_sequence: false,
          full_screen?: true,
          game_finished: false,
-         preparing: true
+         preparing: true,
+         sequence_duration: sequence_duration,
+         response_timeout: response_timeout,
+         total_attempts: total_attempts,
+         config: config
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
+    end
+  end
+
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
     end
   end
 
@@ -49,13 +72,21 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
   defp maybe_to_atom(value), do: value
 
   def handle_info(:hide_sequence, socket) do
-    timeout_ref = Process.send_after(self(), :timeout, @response_timeout)
+    timeout_ref = Process.send_after(self(), :timeout, socket.assigns.response_timeout)
     {:noreply, assign(socket, show_sequence: false, start_time: System.monotonic_time(), timeout_ref: timeout_ref)}
   end
 
   def handle_info(:start_round, socket) do
-    sequence = ReverseSequence.generate_sequence(socket.assigns.difficulty)
-    Process.send_after(self(), :hide_sequence, @sequence_duration)
+    sequence =
+      case socket.assigns.difficulty do
+        :criado ->
+          length = Map.get(socket.assigns.config, :sequence_length, @default_sequence_length)
+          ReverseSequence.generate_sequence(:criado, %{sequence_length: length})
+
+        diff -> ReverseSequence.generate_sequence(diff)
+      end
+
+    Process.send_after(self(), :hide_sequence, socket.assigns.sequence_duration)
 
     {:noreply,
      assign(socket,
@@ -84,7 +115,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       new_full_sequence =
         if was_full_correct, do: socket.assigns.full_sequence + 1, else: socket.assigns.full_sequence
 
-      reaction_time_ms = @response_timeout
+      reaction_time_ms = socket.assigns.response_timeout
       new_attempts = socket.assigns.attempts + 1
       new_total_reaction_time = socket.assigns.total_reaction_time + reaction_time_ms
 
@@ -92,7 +123,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       new_wrong = socket.assigns.wrong + wrong
       new_omitted = socket.assigns.omitted + omitted
 
-      if new_attempts >= @total_attempts do
+      if new_attempts >= socket.assigns.total_attempts do
         send(self(), :save_results)
 
         {:noreply,
@@ -105,8 +136,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            game_finished: true
          )}
       else
-        new_sequence = ReverseSequence.generate_sequence(socket.assigns.difficulty)
-        Process.send_after(self(), :hide_sequence, @sequence_duration)
+        send(self(), :start_round)
 
         {:noreply,
          assign(socket,
@@ -115,12 +145,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            omitted: new_omitted,
            full_sequence: new_full_sequence,
            attempts: new_attempts,
-           total_reaction_time: new_total_reaction_time,
-           sequence: new_sequence,
-           user_input: List.duplicate("", length(new_sequence)),
-           show_sequence: true,
-           start_time: System.monotonic_time(),
-           timeout_ref: nil
+           total_reaction_time: new_total_reaction_time
          )}
       end
     end
@@ -195,7 +220,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     new_wrong = socket.assigns.wrong + wrong
     new_omitted = socket.assigns.omitted + omitted
 
-    if new_attempts >= @total_attempts do
+    if new_attempts >= socket.assigns.total_attempts do
       send(self(), :save_results)
 
       {:noreply,
@@ -209,8 +234,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          timeout_ref: nil
        )}
     else
-      new_sequence = ReverseSequence.generate_sequence(socket.assigns.difficulty)
-      Process.send_after(self(), :hide_sequence, @sequence_duration)
+      send(self(), :start_round)
 
       {:noreply,
        assign(socket,
@@ -220,10 +244,6 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
          full_sequence: new_full_sequence,
          attempts: new_attempts,
          total_reaction_time: new_total_reaction_time,
-         sequence: new_sequence,
-         user_input: List.duplicate("", length(new_sequence)),
-         show_sequence: true,
-         start_time: System.monotonic_time(),
          timeout_ref: nil
        )}
     end

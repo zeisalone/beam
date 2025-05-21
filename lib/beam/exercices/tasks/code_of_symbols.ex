@@ -1,4 +1,5 @@
 defmodule Beam.Exercices.Tasks.CodeOfSymbols do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Tarefa que apresenta um código de símbolos (figuras com cores), onde cada símbolo representa um número específico.
   O utilizador deverá preencher uma grelha com os números corretos associados a cada símbolo.
@@ -7,13 +8,42 @@ defmodule Beam.Exercices.Tasks.CodeOfSymbols do
   @shapes ["circle", "square", "triangle", "star", "heart"]
   @colors ["red", "blue", "green", "yellow", "purple", "orange", "teal", "pink"]
 
+  @impl true
+  def default_config do
+    %{
+      response_timeout: 45_000,
+      symbol_count: 6,
+      grid_cell_count: 25
+    }
+  end
+
+  @impl true
+  def config_spec do
+    [
+      {:response_timeout, :integer, label: "Tempo de Resposta (ms)"},
+      {:symbol_count, :integer, label: "Número de Símbolos"},
+      {:grid_cell_count, :integer, label: "Tamanho da Grelha (número de células)"}
+    ]
+  end
+
+  @impl true
+  def validate_config(%{response_timeout: t, symbol_count: sc, grid_cell_count: gc})
+      when is_integer(t) and t > 0 and is_integer(sc) and sc > 0 and is_integer(gc) and gc > 0 do
+    :ok
+  end
+
+  def validate_config(_), do: {:error, %{message: "Parâmetros inválidos"}}
+
   @doc """
-  Gera o código de símbolo -> número aleatoriamente consoante a dificuldade.
+  Gera o código de símbolo -> número aleatoriamente consoante a dificuldade ou configuração.
   """
-  def generate_code(:facil), do: generate_code_for(4)
-  def generate_code(:medio), do: generate_code_for(6)
-  def generate_code(:dificil), do: generate_code_for(8)
-  def generate_code(_), do: generate_code(:medio)
+  def generate_code(difficulty, config \\ %{})
+
+  def generate_code(:facil, _), do: generate_code_for(4)
+  def generate_code(:medio, _), do: generate_code_for(6)
+  def generate_code(:dificil, _), do: generate_code_for(8)
+  def generate_code(:criado, config) when is_map(config), do: generate_code_for(Map.get(config, :symbol_count, 6))
+  def generate_code(_, _), do: generate_code_for(6)
 
   defp generate_code_for(count) do
     Enum.zip(
@@ -30,18 +60,18 @@ defmodule Beam.Exercices.Tasks.CodeOfSymbols do
   @doc """
   Gera a grelha com símbolos aleatórios a partir do código gerado.
   """
-  def generate_grid(code, :facil), do: generate_grid_for(code, 4 * 4)
-  def generate_grid(code, :medio), do: generate_grid_for(code, 5 * 5)
-  def generate_grid(code, :dificil), do: generate_grid_for(code, 6 * 6)
-  def generate_grid(code, _), do: generate_grid(code, :medio)
+  def generate_grid(code, difficulty, config \\ %{})
+
+  def generate_grid(code, :facil, _), do: generate_grid_for(code, 4 * 4)
+  def generate_grid(code, :medio, _), do: generate_grid_for(code, 5 * 5)
+  def generate_grid(code, :dificil, _), do: generate_grid_for(code, 6 * 6)
+  def generate_grid(code, :criado, config) when is_map(config), do: generate_grid_for(code, Map.get(config, :grid_cell_count, 25))
+  def generate_grid(code, _, _), do: generate_grid_for(code, 5 * 5)
 
   defp generate_grid_for(code, total_cells) do
     Enum.map(1..total_cells, fn _ -> Enum.random(code) end)
   end
 
-  @doc """
-  Avalia cada resposta inserida em relação à grelha original.
-  """
   def evaluate_responses(grid, user_input) do
     Enum.zip(grid, user_input)
     |> Enum.reduce({0, 0, 0}, fn

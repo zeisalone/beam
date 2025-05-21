@@ -4,17 +4,31 @@ defmodule BeamWeb.Tasks.LessThanFiveLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @total_trials 20
+  @default_total_trials 20
+  @default_display_times %{
+    facil: 2000,
+    medio: 800,
+    dificil: 800,
+    default: 1000
+  }
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
-
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty", "facil") |> maybe_to_atom()
     full_screen = Map.get(session, "full_screen?", true)
 
-    {interval, blank_interval} = interval_settings(difficulty)
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(
+        LessThanFive.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    total_trials = Map.get(config, :total_trials, @default_total_trials)
+    interval = Map.get(@default_display_times, difficulty, @default_display_times.default)
 
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :next_number, 0)
@@ -24,7 +38,7 @@ defmodule BeamWeb.Tasks.LessThanFiveLive do
          current_user: current_user,
          user_id: current_user.id,
          task_id: task_id,
-         sequence: LessThanFive.generate_sequence(@total_trials, difficulty),
+         sequence: LessThanFive.generate_sequence(total_trials, difficulty),
          current_index: -1,
          correct: 0,
          wrong: 0,
@@ -34,10 +48,10 @@ defmodule BeamWeb.Tasks.LessThanFiveLive do
          show_number: false,
          live_action: live_action,
          difficulty: difficulty,
-         total_trials: @total_trials,
+         total_trials: total_trials,
          user_pressed: false,
          interval: interval,
-         blank_interval: blank_interval,
+         blank_interval: interval,
          current_number: nil,
          current_color: :black,
          full_screen?: full_screen,
@@ -48,13 +62,15 @@ defmodule BeamWeb.Tasks.LessThanFiveLive do
     end
   end
 
-  defp interval_settings(:facil), do: {2000, 2000}
-  defp interval_settings(:medio), do: {800, 800}
-  defp interval_settings(:dificil), do: {800, 800}
-  defp interval_settings(_), do: {1000, 1000}
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
+    end
+  end
 
   def handle_info(:next_number, socket) do
-    if socket.assigns.current_index + 1 >= @total_trials do
+    if socket.assigns.current_index + 1 >= socket.assigns.total_trials do
       send(self(), :save_results)
       {:noreply, socket}
     else
@@ -206,8 +222,7 @@ defmodule BeamWeb.Tasks.LessThanFiveLive do
             _ -> "text-black"
           end
 
-        _ ->
-          "text-black"
+        _ -> "text-black"
       end
 
     ~H"""

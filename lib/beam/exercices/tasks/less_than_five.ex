@@ -1,7 +1,29 @@
 defmodule Beam.Exercices.Tasks.LessThanFive do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Logic for the Greater Than Five task.
   """
+
+  def default_config do
+    %{
+      total_trials: 20,
+      display_time: 2000
+    }
+  end
+
+  def config_spec do
+    [
+      {:total_trials, :integer, label: "Número de Rondas"},
+      {:display_time, :integer, label: "Tempo de Exibição (ms)"}
+    ]
+  end
+
+  def validate_config(%{total_trials: n, display_time: t})
+      when is_integer(n) and n > 0 and is_integer(t) and t > 0 do
+    :ok
+  end
+
+  def validate_config(_), do: {:error, %{message: "Parâmetros inválidos"}}
 
   # Números permitidos (exclui 5)
   @numbers Enum.to_list(1..9) -- [5]
@@ -15,6 +37,7 @@ defmodule Beam.Exercices.Tasks.LessThanFive do
   """
   def generate_sequence(num_trials, difficulty) do
     half_trials = div(num_trials, 2)
+    extra = rem(num_trials, 2)
 
     lower_numbers =
       Stream.repeatedly(fn -> Enum.random(Enum.filter(@numbers, &(&1 < 5))) end)
@@ -24,7 +47,14 @@ defmodule Beam.Exercices.Tasks.LessThanFive do
       Stream.repeatedly(fn -> Enum.random(Enum.filter(@numbers, &(&1 > 5))) end)
       |> Enum.take(half_trials)
 
-    numbers = Enum.shuffle(lower_numbers ++ higher_numbers)
+    extra_list =
+      if extra == 0 do
+        []
+      else
+        [Enum.random(@numbers)]
+      end
+
+    numbers = Enum.shuffle(lower_numbers ++ higher_numbers ++ extra_list)
 
     case difficulty do
       :dificil ->

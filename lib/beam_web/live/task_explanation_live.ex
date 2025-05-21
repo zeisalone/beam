@@ -46,12 +46,38 @@ defmodule BeamWeb.TaskExplanationLive do
 
   def handle_event("start_task", %{"type" => "test"}, socket) do
     Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
-    {:noreply, push_navigate(socket, to: ~p"/tasks/#{socket.assigns.task.id}/test?live_action=test")}
+
+    {:noreply,
+     push_navigate(socket,
+       to: ~p"/tasks/#{socket.assigns.task.id}/test?live_action=test"
+     )}
   end
 
   def handle_event("start_task", %{"type" => "training", "difficulty" => difficulty}, socket) do
     Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
-    {:noreply, push_navigate(socket, to: ~p"/tasks/#{socket.assigns.task.id}/training?live_action=training&difficulty=#{difficulty}")}
+
+    config =
+      if difficulty == "criado" and socket.assigns.recommendation && socket.assigns.recommendation.configuration do
+        socket.assigns.recommendation.configuration.data
+      else
+        nil
+      end
+
+    IO.inspect(config, label: "[TaskExplanationLive] Config passed for navigation")
+
+    query_params =
+      if config do
+        "&config=" <> URI.encode(Jason.encode!(config))
+      else
+        ""
+      end
+
+    {:noreply,
+     push_navigate(socket,
+       to:
+         "/tasks/#{socket.assigns.task.id}/training?live_action=training&difficulty=#{difficulty}#{query_params}",
+       replace: true
+     )}
   end
 
   def handle_event("toggle_dropdown", _params, socket) do

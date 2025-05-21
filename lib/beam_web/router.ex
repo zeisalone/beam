@@ -47,6 +47,7 @@ defmodule BeamWeb.Router do
       on_mount: [{BeamWeb.UserAuth, :mount_current_user}] do
       live "/:task_id/training", DynamicTaskLive, :training
       live "/:task_id/test", DynamicTaskLive, :test
+      live "/:task_id/config/edit", ExerciseConfig.ConfigEditLive, :edit
     end
   end
 
@@ -115,6 +116,7 @@ defmodule BeamWeb.Router do
       live "/dashboard/patient/:patient_id", PatientProfileLive, :show
       live "/notes/:patient_id", UserNotesLive, :show
       live "/dashboard", DashboardLive, :index
+      live "/configurations", ExerciseConfig.EditionsReserveLive, :index
     end
   end
 

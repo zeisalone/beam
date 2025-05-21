@@ -4,18 +4,26 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @phase_duration 3000
-  @cycle_duration 2000
-  @total_phases 20
   @intro_duration 3000
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user", nil)
-
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
     full_screen = Map.get(session, "full_screen?", true)
+
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(
+        SearchingForAnAnswer.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    phase_duration = Map.get(config, :phase_duration)
+    cycle_duration = Map.get(config, :cycle_duration)
+    total_phases = Map.get(config, :total_phases)
 
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
@@ -44,7 +52,10 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
          difficulty: difficulty,
          full_screen?: full_screen,
          preparing_task: true,
-         show_intro: false
+         show_intro: false,
+         phase_duration: phase_duration,
+         cycle_duration: cycle_duration,
+         total_phases: total_phases
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
@@ -55,17 +66,17 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(value), do: value
 
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
+    end
+  end
+
   def handle_info(:prepare_task, socket) do
     target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
-
     Process.send_after(self(), :start_intro, 1000)
-
-    {:noreply,
-     assign(socket,
-       target: target,
-       preparing_task: false,
-       show_intro: true
-     )}
+    {:noreply, assign(socket, target: target, preparing_task: false, show_intro: true)}
   end
 
   def handle_info(:start_intro, socket) do
@@ -75,8 +86,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
 
   def handle_info(:start_phase, socket) do
     phase = SearchingForAnAnswer.generate_phase(socket.assigns.target, socket.assigns.difficulty)
-
-    Process.send_after(self(), :start_cycle, @phase_duration)
+    Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
 
     {:noreply,
      assign(socket,
@@ -88,25 +98,19 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
   end
 
   def handle_info(:start_cycle, socket) do
-    Process.send_after(self(), :next_phase, @cycle_duration)
-
-    {:noreply,
-     assign(socket,
-       phase: [],
-       in_cycle: true
-     )}
+    Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
+    {:noreply, assign(socket, phase: [], in_cycle: true)}
   end
 
   def handle_info(:next_phase, socket) do
     was_omitted = socket.assigns.user_response == nil
-    reaction_time = if was_omitted, do: @phase_duration, else: 0
+    reaction_time = if was_omitted, do: socket.assigns.phase_duration, else: 0
 
-    if socket.assigns.current_phase_index >= @total_phases do
+    if socket.assigns.current_phase_index >= socket.assigns.total_phases do
       send(self(), :save_results)
       {:noreply, assign(socket, calculating_results: true)}
     else
       Process.send_after(self(), :start_phase, 0)
-
       new_results = [%{result: :omitted, reaction_time: reaction_time} | socket.assigns.results]
 
       {:noreply,
@@ -124,9 +128,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     {task_id, result_id} = save_final_result(socket)
 
     case socket.assigns.live_action do
-      :test ->
-        Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
-
+      :test -> Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
       :training ->
         Beam.Exercices.save_training_attempt(
           socket.assigns.user_id,
@@ -158,15 +160,11 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
           (System.monotonic_time() - socket.assigns.current_phase_start)
           |> System.convert_time_unit(:native, :millisecond)
 
-        target =
-          Enum.find(
-            socket.assigns.phase,
-            &(&1.shape == socket.assigns.target.shape && &1.color == socket.assigns.target.color)
-          )
+        target = Enum.find(socket.assigns.phase, &(&1.shape == socket.assigns.target.shape and &1.color == socket.assigns.target.color))
 
         result =
           cond do
-            reaction_time > @phase_duration -> :omitted
+            reaction_time > socket.assigns.phase_duration -> :omitted
             user_position == target.position -> :correct
             true -> :wrong
           end
@@ -237,7 +235,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
                 if @calculating_results do
                   "width: 100%"
                 else
-                  "width: #{min(div((@current_phase_index - 1) * 100, 20), 100)}%"
+                  "width: #{min(div((@current_phase_index - 1) * 100, @total_phases), 100)}%"
                 end
               }
             ></div>
@@ -247,7 +245,7 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
               <div class="mb-1 text-xl font-bold">A calcular resultados...</div>
               <div>Exercício Concluído</div>
             <% else %>
-              <%= min(div((@current_phase_index - 1) * 100, 20), 100) %>%
+              <%= min(div((@current_phase_index - 1) * 100, @total_phases), 100) %>%
             <% end %>
           </div>
         </div>

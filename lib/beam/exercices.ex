@@ -5,7 +5,7 @@ defmodule Beam.Exercices do
 
   import Ecto.Query, warn: false
   alias Beam.Repo
-  alias Beam.Exercices.{Recommendation, Task, Result, Test, Training}
+  alias Beam.Exercices.{Recommendation, Task, Result, Test, Training, ExerciseConfiguration}
 
   def list_tasks do
     from(t in Task, order_by: t.id)
@@ -334,7 +334,7 @@ defmodule Beam.Exercices do
           from r in Beam.Exercices.Recommendation,
             where: r.patient_id == ^patient.patient_id and r.task_id == ^task_id and r.seen == false,
             order_by: [asc: r.inserted_at],
-            preload: [therapist: [:user]],
+            preload: [therapist: [:user], configuration: []],
             limit: 1
         )
     end
@@ -369,5 +369,50 @@ defmodule Beam.Exercices do
 
         Map.merge(result, %{result_type: result_type})
     end)
+  end
+
+  @spec configurable_module_for(String.t()) :: {:ok, module()} | {:error, :not_configurable}
+  def configurable_module_for(task_name) do
+    case task_name do
+      "Sequência Inversa" -> {:ok, Beam.Exercices.Tasks.ReverseSequence}
+      "Ordenar os Animais" -> {:ok, Beam.Exercices.Tasks.OrderAnimals}
+      "Simon" -> {:ok, Beam.Exercices.Tasks.Simon}
+      "Procurar a Vogal" -> {:ok, Beam.Exercices.Tasks.SearchingForAVowel}
+      "Procurar uma resposta" -> {:ok, Beam.Exercices.Tasks.SearchingForAnAnswer}
+      "Segue a Figura" -> {:ok, Beam.Exercices.Tasks.FollowTheFigure}
+      "Menor que 5" -> {:ok, Beam.Exercices.Tasks.LessThanFive}
+      "Matemática" -> {:ok, Beam.Exercices.Tasks.MathOperation}
+      "Código de Símbolos" -> {:ok, Beam.Exercices.Tasks.CodeOfSymbols}
+      "Stroop" -> {:ok, Beam.Exercices.Tasks.NameAndColor}
+      _ -> {:error, :not_configurable}
+    end
+  end
+
+  def list_exercise_configurations_with_task do
+    Beam.Repo.all(
+      from c in ExerciseConfiguration,
+        join: t in assoc(c, :task),
+        preload: [task: t],
+        order_by: [desc: c.inserted_at]
+    )
+  end
+
+  def recommend_custom_configuration(%{
+    config_id: config_id,
+    patient_id: patient_id,
+    therapist_id: therapist_id
+  }) do
+    config = Repo.get!(ExerciseConfiguration, config_id)
+
+    %Recommendation{}
+    |> Recommendation.changeset(%{
+      task_id: config.task_id,
+      configuration_id: config.id,
+      patient_id: patient_id,
+      therapist_id: therapist_id,
+      type: :treino,
+      difficulty: :criado
+    })
+    |> Repo.insert()
   end
 end

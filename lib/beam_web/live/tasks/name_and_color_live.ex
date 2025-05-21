@@ -4,10 +4,11 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @total_trials 20
-  @default_display_time %{facil: 3000, medio: 2000, dificil: 2000}
-  @default_question_time %{facil: 5500, medio: 5000, dificil: 5000}
+  @default_total_trials 20
+  @default_display_times %{facil: 3000, medio: 2000, dificil: 1500, default: 2000}
+  @default_question_times %{facil: 5500, medio: 5000, dificil: 5000, default: 5000}
 
+  @impl true
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user")
     task_id = Map.get(session, "task_id")
@@ -16,16 +17,38 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
 
     difficulty =
       case live_action do
-        :training ->
-          Map.get(session, "difficulty", "medio") |> String.to_existing_atom()
-
-        _ ->
-          nil
+        :training -> Map.get(session, "difficulty", "medio") |> String.to_existing_atom()
+        _ -> :criado
       end
+
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(NameAndColor.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    total_trials = Map.get(config, :total_trials, @default_total_trials)
+
+    display_time =
+      case Map.get(config, :display_time) do
+        val when is_binary(val) -> String.to_integer(val)
+        val when is_integer(val) -> val
+        _ -> Map.get(@default_display_times, difficulty, @default_display_times.default)
+      end
+
+    question_time =
+      case Map.get(config, :question_time) do
+        val when is_binary(val) -> String.to_integer(val)
+        val when is_integer(val) -> val
+        _ -> Map.get(@default_question_times, difficulty, @default_question_times.default)
+      end
+
+    question_type = Map.get(config, :question_type, "Ambas")
 
     if connected?(socket), do: Process.send_after(self(), :start_intro, 500)
 
-    trials = Beam.Exercices.Tasks.NameAndColor.generate_trials(@total_trials)
+    trials = NameAndColor.generate_trials(total_trials)
 
     {:ok,
      assign(socket,
@@ -51,37 +74,39 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
        results: [],
        full_screen?: full_screen,
        show_intro: true,
-       finished: false
+       finished: false,
+       total_trials: total_trials,
+       display_time: display_time,
+       question_time: question_time,
+       question_type: question_type,
+       config: config
      )}
   end
 
+  @impl true
   def handle_info(:start_intro, socket) do
     Process.send_after(self(), :start_trial, 2000)
-
     {:noreply, assign(socket, show_intro: true)}
   end
-
 
   def handle_info(:start_trial, socket) do
     index = socket.assigns.current_index
 
-    if index < @total_trials do
+    if index < socket.assigns.total_trials do
       trial = Enum.at(socket.assigns.trials, index)
-      display_time = @default_display_time[socket.assigns.difficulty || :medio]
-
-      Process.send_after(self(), :show_question, display_time)
+      Process.send_after(self(), :show_question, socket.assigns.display_time)
 
       {:noreply,
-      assign(socket,
-        current_trial: trial,
-        display_text: trial.word,
-        display_color: trial.color,
-        question: nil,
-        options: [],
-        show_question: false,
-        awaiting_response: false,
-        show_intro: false
-      )}
+       assign(socket,
+         current_trial: trial,
+         display_text: trial.word,
+         display_color: trial.color,
+         question: nil,
+         options: [],
+         show_question: false,
+         awaiting_response: false,
+         show_intro: false
+       )}
     else
       Process.send_after(self(), :save_results, 0)
       {:noreply, assign(socket, finished: true)}
@@ -90,10 +115,17 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
 
   def handle_info(:show_question, socket) do
     trial = socket.assigns.current_trial
-    question_time = @default_question_time[socket.assigns.difficulty || :medio]
 
     question =
       case socket.assigns.difficulty do
+        :criado ->
+          case socket.assigns.question_type do
+            "Pela Palavra" -> :word
+            "Pela Cor" -> :color
+            "Ambas" -> Enum.random([:word, :color])
+            _ -> :word
+          end
+
         :facil -> :color
         :medio -> :word
         :dificil -> Enum.random([:word, :color])
@@ -101,8 +133,8 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
       end
 
     options = NameAndColor.generate_options(trial, question)
-
-    omission_ref = Process.send_after(self(), :handle_omission, question_time)
+    timeout = socket.assigns.question_time
+    omission_ref = Process.send_after(self(), :handle_omission, timeout)
 
     {:noreply,
      assign(socket,
@@ -124,41 +156,31 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
   end
 
   def handle_info(:save_results, socket) do
-    task_id = socket.assigns.task_id
-    user_id = socket.assigns.user_id
-    correct = socket.assigns.correct
-    wrong = socket.assigns.wrong
-    omitted = socket.assigns.omitted
-    total_time = socket.assigns.total_reaction_time
-
-    total = correct + wrong + omitted
-    accuracy = if total > 0, do: correct / total, else: 0.0
-    avg_reaction_time = if total > 0, do: total_time / total, else: 0
-
     result = %{
-      user_id: user_id,
-      task_id: task_id,
-      correct: correct,
-      wrong: wrong,
-      omitted: omitted,
-      accuracy: accuracy,
-      reaction_time: avg_reaction_time
+      user_id: socket.assigns.user_id,
+      task_id: socket.assigns.task_id,
+      correct: socket.assigns.correct,
+      wrong: socket.assigns.wrong,
+      omitted: socket.assigns.omitted,
+      accuracy: if(socket.assigns.total_trials > 0, do: socket.assigns.correct / socket.assigns.total_trials, else: 0.0),
+      reaction_time: if(socket.assigns.total_trials > 0, do: socket.assigns.total_reaction_time / socket.assigns.total_trials, else: 0.0)
     }
 
     case Repo.insert(Result.changeset(%Result{}, result)) do
       {:ok, result} ->
         case socket.assigns.live_action do
-          :test -> Beam.Exercices.save_test_attempt(user_id, task_id, result.id)
-          :training -> Beam.Exercices.save_training_attempt(user_id, task_id, result.id, socket.assigns.difficulty)
+          :test -> Beam.Exercices.save_test_attempt(socket.assigns.user_id, socket.assigns.task_id, result.id)
+          :training -> Beam.Exercices.save_training_attempt(socket.assigns.user_id, socket.assigns.task_id, result.id, socket.assigns.difficulty)
         end
 
-        {:noreply, push_navigate(socket, to: "/results/aftertask?task_id=#{task_id}")}
+        {:noreply, push_navigate(socket, to: "/results/aftertask?task_id=#{socket.assigns.task_id}")}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Erro ao guardar resultados.")}
     end
   end
 
+  @impl true
   def handle_event("submit_answer", %{"answer" => answer}, socket) do
     if socket.assigns.awaiting_response do
       Process.cancel_timer(socket.assigns.omission_timer_ref)
@@ -167,10 +189,7 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
         System.monotonic_time() - socket.assigns.start_time
         |> System.convert_time_unit(:native, :millisecond)
 
-      question = socket.assigns.question
-      trial = socket.assigns.current_trial
-      correct_answer = NameAndColor.correct_answer(trial, question)
-
+      correct_answer = NameAndColor.correct_answer(socket.assigns.current_trial, socket.assigns.question)
       result = if answer == correct_answer, do: :correct, else: :wrong
 
       update_result(result, assign(socket, omission_timer_ref: nil), reaction_time)
@@ -178,7 +197,6 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
       {:noreply, socket}
     end
   end
-
 
   defp update_result(result, socket, reaction_time) do
     index = socket.assigns.current_index + 1
@@ -204,6 +222,14 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
      |> assign(updates)}
   end
 
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
+    end
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <div class="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white">
@@ -220,7 +246,6 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
               <p class="text-xl mb-4">
                 Qual era a <strong><%= if @question == :word, do: "PALAVRA", else: "COR" %></strong>?
               </p>
-
               <div class="flex flex-wrap justify-center gap-4">
                 <%= for option <- @options do %>
                   <button

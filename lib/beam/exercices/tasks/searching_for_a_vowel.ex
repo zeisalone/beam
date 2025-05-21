@@ -1,4 +1,5 @@
 defmodule Beam.Exercices.Tasks.SearchingForAVowel do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Logic for the Searching for the Vowel task.
   """
@@ -6,6 +7,36 @@ defmodule Beam.Exercices.Tasks.SearchingForAVowel do
   @vowels ["A", "E", "I", "O", "U"]
   @colors ["red", "blue", "green", "yellow"]
   @positions ["up", "down", "left", "right"]
+
+  def default_config do
+    %{
+      phase_duration: 3000,
+      cycle_duration: 2000,
+      total_phases: 20
+    }
+  end
+
+  def config_spec do
+    [
+      {:phase_duration, :integer, label: "Duração da fase (ms)"},
+      {:cycle_duration, :integer, label: "Duração entre fases (ms)"},
+      {:total_phases, :integer, label: "Número total de fases"}
+    ]
+  end
+
+  def validate_config(%{
+        phase_duration: phase,
+        cycle_duration: cycle,
+        total_phases: total
+      })
+      when is_integer(phase) and phase > 0 and
+           is_integer(cycle) and cycle > 0 and
+           is_integer(total) and total > 0 do
+    :ok
+  end
+
+  def validate_config(_),
+    do: {:error, %{message: "Parâmetros inválidos: espera-se inteiros positivos para duração e total de fases"}}
 
   @doc """
   Generate the target vowel and color.

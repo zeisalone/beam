@@ -5,59 +5,51 @@ defmodule BeamWeb.DynamicTaskLive do
 
   @impl true
   def mount(%{"task_id" => task_id} = params, _session, socket) do
-    current_user = Map.get(socket.assigns, :current_user, nil)
-    live_action = params["live_action"] |> maybe_to_atom()
-    difficulty = params["difficulty"] |> maybe_to_atom()
+    current_user = socket.assigns[:current_user] || raise "Current user not found"
+    live_action = maybe_to_atom(params["live_action"])
+    difficulty = maybe_to_atom(params["difficulty"])
+    config = decode_config_param(params["config"])
 
     case Repo.get(Task, task_id) do
       nil ->
         {:ok, push_navigate(socket, to: "/tasks")}
 
-      %Task{type: "math_operation"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.MathOperationLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "searching_for_an_answer"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.SearchingForAnAnswerLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "less_than_five"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.LessThanFiveLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "reverse_sequence"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.ReverseSequenceLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "code_of_symbols"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.CodeOfSymbolsLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "name_and_color"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.NameAndColorLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "follow_the_figure"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.FollowTheFigureLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "simon"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.SimonLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "searching_for_a_vowel"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.SearchingForAVowelLive, params, current_user, live_action, difficulty)}
-
-      %Task{type: "order_animals"} ->
-        {:ok, assign_task(socket, BeamWeb.Tasks.OrderAnimalsLive, params, current_user, live_action, difficulty)}
-
-      _ ->
-        {:ok, push_navigate(socket, to: "/tasks")}
+      %Task{type: type} ->
+        {:ok,
+         assign(socket,
+           live_view: resolve_live_view(type),
+           params: params,
+           current_user: current_user,
+           full_screen?: true,
+           live_action: live_action,
+           difficulty: difficulty,
+           config: config
+         )}
     end
   end
 
-  defp assign_task(socket, live_view, params, current_user, live_action, difficulty) do
-    assign(socket,
-      live_view: live_view,
-      params: params,
-      current_user: current_user,
-      full_screen?: true,
-      live_action: live_action,
-      difficulty: difficulty
-    )
+  defp decode_config_param(nil), do: %{}
+  defp decode_config_param(encoded_json) do
+    encoded_json
+    |> URI.decode()
+    |> Jason.decode()
+    |> case do
+      {:ok, map} when is_map(map) -> map
+      _ -> %{}
+    end
   end
+
+  defp resolve_live_view("math_operation"), do: BeamWeb.Tasks.MathOperationLive
+  defp resolve_live_view("searching_for_an_answer"), do: BeamWeb.Tasks.SearchingForAnAnswerLive
+  defp resolve_live_view("less_than_five"), do: BeamWeb.Tasks.LessThanFiveLive
+  defp resolve_live_view("reverse_sequence"), do: BeamWeb.Tasks.ReverseSequenceLive
+  defp resolve_live_view("code_of_symbols"), do: BeamWeb.Tasks.CodeOfSymbolsLive
+  defp resolve_live_view("name_and_color"), do: BeamWeb.Tasks.NameAndColorLive
+  defp resolve_live_view("follow_the_figure"), do: BeamWeb.Tasks.FollowTheFigureLive
+  defp resolve_live_view("simon"), do: BeamWeb.Tasks.SimonLive
+  defp resolve_live_view("searching_for_a_vowel"), do: BeamWeb.Tasks.SearchingForAVowelLive
+  defp resolve_live_view("order_animals"), do: BeamWeb.Tasks.OrderAnimalsLive
+  defp resolve_live_view(_), do: BeamWeb.Tasks.MathOperationLive
 
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
@@ -73,7 +65,8 @@ defmodule BeamWeb.DynamicTaskLive do
         "live_action" => Atom.to_string(@live_action),
         "difficulty" => Atom.to_string(@difficulty),
         "current_user" => @current_user,
-        "full_screen?" => true
+        "full_screen?" => true,
+        "config" => @config
       }
     )}
     """

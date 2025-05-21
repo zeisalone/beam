@@ -1,4 +1,5 @@
 defmodule Beam.Exercices.Tasks.OrderAnimals do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Lógica para o exercício Ordenar os Animais.
 
@@ -8,22 +9,55 @@ defmodule Beam.Exercices.Tasks.OrderAnimals do
 
   @animals ["cat", "dog", "elephant", "ladybug", "ostrich", "pig", "rabbit", "rat"]
 
+  @impl true
+  def default_config do
+    %{
+      total_rounds: 5,
+      animal_total_time: 2000,
+      min_sequence: 3,
+      max_sequence: 6
+    }
+  end
+
+  @impl true
+  def config_spec do
+    [
+      {:total_rounds, :integer, label: "Número de Rondas"},
+      {:animal_total_time, :integer, label: "Tempo de cada animal (ms)"},
+      {:min_sequence, :integer, label: "Número mínimo de animais"},
+      {:max_sequence, :integer, label: "Número máximo de animais"}
+    ]
+  end
+
+  @impl true
+  def validate_config(cfg) do
+    with true <- is_integer(cfg.total_rounds) and cfg.total_rounds > 0,
+        true <- is_integer(cfg.animal_total_time) and cfg.animal_total_time > 100,
+        true <- is_integer(cfg.min_sequence) and cfg.min_sequence >= 2,
+        true <- is_integer(cfg.max_sequence) and cfg.max_sequence >= cfg.min_sequence do
+      :ok
+    else
+      _ -> {:error, %{message: "Parâmetros inválidos"}}
+    end
+  end
+
+
   @doc """
   Gera uma sequência de animais (alvo) conforme a dificuldade.
   """
-  def generate_target_sequence(difficulty) do
-    range =
-      case difficulty do
+  def generate_target_sequence(level_or_config) do
+    count_range =
+      case level_or_config do
         :facil -> 2..4
         :medio -> 4..6
         :dificil -> 5..8
-        :criado -> 4..6
-        _ -> 4..6
+        config when is_map(config) ->
+          config.min_sequence..config.max_sequence
       end
 
-    total = Enum.random(range)
+    total = Enum.random(count_range)
     Enum.shuffle(@animals) |> Enum.take(total)
-  end
+end
 
   @doc """
   Gera a fase do exercício, contendo os animais em ordem aleatória para o utilizador ordenar.

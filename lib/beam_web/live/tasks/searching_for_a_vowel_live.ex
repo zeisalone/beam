@@ -4,9 +4,6 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @phase_duration 3000
-  @cycle_duration 2000
-  @total_phases 20
   @intro_duration 3000
 
   def mount(_params, session, socket) do
@@ -15,6 +12,17 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
     full_screen = Map.get(session, "full_screen?", true)
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(
+        SearchingForAVowel.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    phase_duration = Map.get(config, :phase_duration)
+    cycle_duration = Map.get(config, :cycle_duration)
+    total_phases = Map.get(config, :total_phases)
 
     if current_user do
       if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
@@ -43,10 +51,21 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
          difficulty: difficulty,
          full_screen?: full_screen,
          preparing_task: true,
-         show_intro: false
+         show_intro: false,
+         phase_duration: phase_duration,
+         cycle_duration: cycle_duration,
+         total_phases: total_phases,
+         config: config
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
+    end
+  end
+
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
     end
   end
 
@@ -67,7 +86,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
 
   def handle_info(:start_phase, socket) do
     phase = SearchingForAVowel.generate_phase(socket.assigns.target, socket.assigns.difficulty)
-    Process.send_after(self(), :start_cycle, @phase_duration)
+    Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
 
     {:noreply,
      assign(socket,
@@ -79,15 +98,15 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   end
 
   def handle_info(:start_cycle, socket) do
-    Process.send_after(self(), :next_phase, @cycle_duration)
+    Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
     {:noreply, assign(socket, phase: [], in_cycle: true)}
   end
 
   def handle_info(:next_phase, socket) do
     was_omitted = socket.assigns.user_response == nil
-    reaction_time = if was_omitted, do: @phase_duration, else: 0
+    reaction_time = if was_omitted, do: socket.assigns.phase_duration, else: 0
 
-    if socket.assigns.current_phase_index >= @total_phases do
+    if socket.assigns.current_phase_index >= socket.assigns.total_phases do
       send(self(), :save_results)
       {:noreply, assign(socket, calculating_results: true)}
     else
@@ -182,7 +201,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
                 if @calculating_results do
                   "width: 100%"
                 else
-                  "width: #{min(div((@current_phase_index - 1) * 100, 20), 100)}%"
+                  "width: #{min(div((@current_phase_index - 1) * 100, @total_phases), 100)}%"
                 end
               }
             ></div>
@@ -192,7 +211,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
               <div class="mb-1 text-xl font-bold">A calcular resultados...</div>
               <div>Exercício Concluído</div>
             <% else %>
-              <%= min(div((@current_phase_index - 1) * 100, 20), 100) %>%
+              <%= min(div((@current_phase_index - 1) * 100, @total_phases), 100) %>%
             <% end %>
           </div>
         </div>

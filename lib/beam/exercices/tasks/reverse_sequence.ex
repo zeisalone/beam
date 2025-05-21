@@ -1,7 +1,39 @@
 defmodule Beam.Exercices.Tasks.ReverseSequence do
+  @behaviour Beam.Exercices.Configurable
+
   @moduledoc """
   Tarefa que exibe uma sequência de números e o usuário deve digitá-los na ordem inversa.
   """
+  def default_config do
+    %{
+      sequence_duration: 7500,
+      response_timeout: 10_000,
+      total_attempts: 5,
+      sequence_length: 5
+    }
+  end
+
+  def config_spec do
+    [
+      {:sequence_duration, :integer, label: "Tempo de Exibição da Sequência (ms)"},
+      {:response_timeout, :integer, label: "Tempo para Responder (ms)"},
+      {:total_attempts, :integer, label: "Número Total de Tentativas"},
+      {:sequence_length, :integer, label: "Tamanho da Sequência"}
+    ]
+  end
+
+  def validate_config(%{
+        sequence_duration: sd,
+        response_timeout: rt,
+        total_attempts: ta,
+        sequence_length: sl
+      })
+      when is_integer(sd) and sd > 0 and
+          is_integer(rt) and rt > 0 and
+          is_integer(ta) and ta > 0 and
+          is_integer(sl) and sl > 0 do
+    :ok
+  end
 
   @doc """
   Gera uma sequência de números baseada na dificuldade.
@@ -10,6 +42,11 @@ defmodule Beam.Exercices.Tasks.ReverseSequence do
   def generate_sequence(:medio), do: Enum.map(1..5, fn _ -> Enum.random(0..9) end)
   def generate_sequence(:dificil), do: Enum.map(1..7, fn _ -> Enum.random(0..9) end)
 
+  def generate_sequence(:criado, opts) when is_map(opts) do
+    len = Map.get(opts, :sequence_length, 5)
+    Enum.map(1..len, fn _ -> Enum.random(0..9) end)
+  end
+  def generate_sequence(_, _), do: generate_sequence(:medio)
   @doc """
   Verifica se a resposta do usuário está correta. Retorna `:correct` ou `:wrong`.
   """

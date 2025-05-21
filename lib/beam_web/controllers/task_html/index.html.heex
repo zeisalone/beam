@@ -28,9 +28,20 @@
             </td>
 
             <td class="px-4 py-4 font-medium truncate">
-              <.link navigate={~p"/tasks/#{task.id}"} class="text-primary-600 text-md hover:text-primary-700 hover:underline">
-                <%= task.name %>
-              </.link>
+              <div class="flex items-center gap-2">
+                <.link navigate={~p"/tasks/#{task.id}"} class="text-primary-600 text-md hover:text-primary-700 hover:underline">
+                  <%= task.name %>
+                </.link>
+
+                <%= if @current_user.type == "Terapeuta" do %>
+                  <.link navigate={~p"/tasks/#{task.id}/config/edit"} class="ml-1">
+                    <img src="/images/pencil.svg" alt="Editar" class="h-4 w-4 opacity-60 hover:opacity-90 transition" />
+                  </.link>
+                  <.link navigate={~p"/configurations?task_id=#{task.id}"} class="ml-1" title="Ver configurações">
+                    <img src="/images/list.svg" alt="Configurações" class="h-5 w-4 opacity-60 hover:opacity-90 transition" />
+                  </.link>
+                <% end %>
+              </div>
             </td>
 
             <td class="px-4 py-4">

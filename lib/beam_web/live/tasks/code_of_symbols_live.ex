@@ -5,7 +5,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
   alias Beam.Repo
   alias Beam.Exercices.Result
 
-  @response_timeout 45_000
+  @default_timeouts %{facil: 45_000, medio: 45_000, dificil: 45_000, default: 45_000}
 
   def mount(_params, session, socket) do
     current_user = Map.get(session, "current_user")
@@ -14,9 +14,19 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
     full_screen = Map.get(session, "full_screen?", true)
 
+    raw_config = Map.get(session, "config", %{})
+
+    config =
+      Map.merge(CodeOfSymbols.default_config(),
+        if(is_map(raw_config), do: atomize_keys(raw_config), else: %{})
+      )
+
+    response_timeout =
+      Map.get(config, :response_timeout, Map.get(@default_timeouts, difficulty, @default_timeouts.default))
+
     if current_user do
-      code = CodeOfSymbols.generate_code(difficulty)
-      grid = CodeOfSymbols.generate_grid(code, difficulty)
+      code = CodeOfSymbols.generate_code(difficulty, config)
+      grid = CodeOfSymbols.generate_grid(code, difficulty, config)
 
       socket =
         assign(socket,
@@ -38,8 +48,10 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
           game_finished: false,
           loading: true,
           full_screen?: full_screen,
-          timeout_ref: nil
+          timeout_ref: nil,
+          response_timeout: response_timeout
         )
+
       if connected?(socket), do: Process.send_after(self(), :hide_loading, 1000)
       {:ok, socket}
     else
@@ -48,7 +60,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
   end
 
   def handle_event("start_task", _params, socket) do
-    timeout_ref = Process.send_after(self(), :timeout, @response_timeout)
+    timeout_ref = Process.send_after(self(), :timeout, socket.assigns.response_timeout)
 
     {:noreply,
      assign(socket,
@@ -122,6 +134,17 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     end)
   end
 
+  defp grid_columns_class(grid_cell_count) do
+    cols =
+      grid_cell_count
+      |> :math.sqrt()
+      |> Float.round()
+      |> trunc()
+
+    "grid grid-cols-#{cols} gap-4"
+  end
+
+
   defp save_attempt(socket, result_id) do
     case socket.assigns.live_action do
       :test ->
@@ -148,6 +171,13 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     case Integer.parse(str) do
       {int, _} -> int
       _ -> nil
+    end
+  end
+
+  defp atomize_keys(map) do
+    for {k, v} <- map, into: %{} do
+      key = if is_binary(k), do: String.to_existing_atom(k), else: k
+      {key, v}
     end
   end
 
@@ -210,14 +240,8 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
 
           <% else %>
             <form phx-submit="submit" phx-change="update_input" class="mt-6">
-              <div class={
-                case @difficulty do
-                  :facil -> "grid grid-cols-4 gap-4"
-                  :medio -> "grid grid-cols-5 gap-4"
-                  :dificil -> "grid grid-cols-6 gap-3"
-                  _ -> "grid grid-cols-4 gap-4"
-                end
-              }>
+              <% grid_class = grid_columns_class(length(@grid)) %>
+                <div class={grid_class}>
                 <%= for {%{shape: shape, color: color}, index} <- Enum.with_index(@grid) do %>
                   <div class="flex flex-col items-center text-center">
                     <div class="w-8 h-8"><%= raw(render_svg(shape, color)) %></div>

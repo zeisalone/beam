@@ -1,10 +1,45 @@
 defmodule Beam.Exercices.Tasks.NameAndColor do
+  @behaviour Beam.Exercices.Configurable
   @moduledoc """
   Lógica para a tarefa "Nome e Cor".
   """
 
   @words ["Vermelho", "Verde", "Azul", "Amarelo"]
   @colors ["red", "green", "blue", "yellow"]
+
+  def default_config do
+    %{
+      total_trials: 20,
+      display_time: 2000,
+      question_time: 5000,
+      question_type: "Ambas"
+    }
+  end
+
+  def config_spec do
+    [
+      {:total_trials, :integer, label: "Número de Tentativas"},
+      {:display_time, :string, label: "Tempo de Exibição da Palavra (ms)"},
+      {:question_time, :string, label: "Tempo da Pergunta (ms)"},
+      {:question_type, :select, label: "Tipo de Pergunta", options: ["Pela Palavra", "Pela Cor", "Ambas"]}
+    ]
+  end
+
+  def validate_config(%{
+        total_trials: t,
+        display_time: dt,
+        question_time: qtime,
+        question_type: qt
+      })
+      when is_integer(t) and t > 0 and
+           is_integer(dt) and dt > 0 and
+           is_integer(qtime) and qtime > 0 and
+           qt in ["Pela Palavra", "Pela Cor", "Ambas"] do
+    :ok
+  end
+
+  def validate_config(_),
+    do: {:error, %{message: "Parâmetros inválidos. Verifique os tempos e o tipo de pergunta."}}
 
   @doc """
   Gera uma lista de fases com palavras e cores trocadas.
