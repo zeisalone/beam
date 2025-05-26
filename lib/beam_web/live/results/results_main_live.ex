@@ -159,7 +159,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
 
       <.help_button open={@open_help}>
         <:help>
-          <p><strong>1.</strong> Nesta página podes consultar os resultados de pacientes ou de exercícios realizados na aplicação.</p>
+          <p><strong>1.</strong> Nesta página podes consultar os resultados de pacientes ou de exercícios realizados na aplicação, bem como visualizar gráficos informativos.</p>
         </:help>
         <:help>
           <p><strong>2.</strong> O botão <em>Ver Resultados por Utilizador</em> permite-te escolher um paciente e ver o desempenho dele.</p>
@@ -169,6 +169,9 @@ defmodule BeamWeb.Results.ResultsMainLive do
         </:help>
         <:help>
           <p><strong>4.</strong> O botão <em>Ver Resultados por Categoria</em> permite-te explorar os resultados segundo as tags dos exercícios.</p>
+        </:help>
+        <:help>
+          <p><strong>5.</strong> Na secção de <em>Estatísticas Gerais</em> podes consultar dados como a idade média dos pacientes, o número de exercícios feitos na semana e métricas de precisão e tempo de reação.</p>
         </:help>
       </.help_button>
     </div>

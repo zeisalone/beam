@@ -150,6 +150,22 @@ defmodule BeamWeb.Results.ResultsPerCategoryLive do
     end
   end
 
+  defp calculate_average_accuracy(results) do
+    if Enum.any?(results) do
+      Enum.reduce(results, 0.0, fn r, acc -> acc + r.accuracy end) / length(results)
+    else
+      nil
+    end
+  end
+
+  defp calculate_average_reaction_time(results) do
+    if Enum.any?(results) do
+      Enum.reduce(results, 0.0, fn r, acc -> acc + r.reaction_time end) / length(results)
+    else
+      nil
+    end
+  end
+
   def render(assigns) do
     ~H"""
     <div class="p-10">
@@ -159,6 +175,24 @@ defmodule BeamWeb.Results.ResultsPerCategoryLive do
         <p class="mb-4 text-lg text-gray-700">Categoria selecionada: <strong><%= @selected_category %></strong></p>
       <% else %>
         <p class="text-center text-gray-500">Nenhuma categoria selecionada.</p>
+      <% end %>
+
+      <%= if @results != [] do %>
+        <div class="flex gap-6 mb-6">
+          <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded shadow min-w-[180px]">
+            <div class="text-sm font-semibold">Média de Precisão</div>
+            <div class="text-2xl font-bold">
+              <%= Float.round(calculate_average_accuracy(@results) * 100, 1) %>%
+            </div>
+          </div>
+
+          <div class="bg-blue-100 text-blue-800 px-6 py-4 rounded shadow min-w-[180px]">
+            <div class="text-sm font-semibold">Média de Tempo de Reação</div>
+            <div class="text-2xl font-bold">
+              <%= Float.round(calculate_average_reaction_time(@results) / 1000, 2) %>s
+            </div>
+          </div>
+        </div>
       <% end %>
 
       <div class="flex gap-6 mb-6">

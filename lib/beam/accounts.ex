@@ -581,4 +581,63 @@ defmodule Beam.Accounts do
         |> Repo.update()
     end
   end
+
+  def average_patient_age do
+    from(p in Patient,
+      where: not is_nil(p.birth_date),
+      select: avg(fragment("DATE_PART('year', AGE(current_date, ?))", p.birth_date))
+    )
+    |> Repo.one()
+  end
+
+  def average_patient_age_for_therapist(therapist_user_id) do
+    from(p in Patient,
+      join: t in assoc(p, :therapist),
+      where: not is_nil(p.birth_date) and t.user_id == ^therapist_user_id,
+      select: avg(fragment("DATE_PART('year', AGE(current_date, ?))", p.birth_date))
+    )
+    |> Repo.one()
+  end
+
+  def age_distribution_all_patients do
+    query =
+      from p in Beam.Accounts.Patient,
+        where: not is_nil(p.birth_date),
+        select: fragment("CAST(FLOOR(DATE_PART('year', AGE(current_date, ?))) AS INTEGER)", p.birth_date)
+
+    Repo.all(query)
+    |> group_ages()
+  end
+
+  def age_distribution_for_therapist(therapist_user_id) do
+    query =
+      from p in Beam.Accounts.Patient,
+        join: t in Beam.Accounts.Therapist,
+        on: p.therapist_id == t.therapist_id,
+        where: t.user_id == ^therapist_user_id and not is_nil(p.birth_date),
+        select: fragment("CAST(FLOOR(DATE_PART('year', AGE(current_date, ?))) AS INTEGER)", p.birth_date)
+
+    Repo.all(query)
+    |> group_ages()
+  end
+
+  defp group_ages(ages) do
+    ranges = [
+      {"0-6", 0..6},
+      {"7-12", 7..12},
+      {"13-18", 13..18},
+      {"19-29", 19..29},
+      {"30-44", 30..44},
+      {"45-59", 45..59},
+      {"60+", 60..150}
+    ]
+
+    total = length(ages)
+
+    Enum.map(ranges, fn {label, range} ->
+      count = Enum.count(ages, &(&1 in range))
+      percent = if total > 0, do: Float.round(count * 100 / total, 1), else: 0.0
+      %{label: label, percent: percent}
+    end)
+  end
 end

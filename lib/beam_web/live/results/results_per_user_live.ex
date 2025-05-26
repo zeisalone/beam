@@ -18,6 +18,12 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
 
     tasks = Exercices.list_tasks()
     results = if user_id, do: Exercices.list_results_by_user(user_id), else: []
+    task_accuracies = if user_id, do: Exercices.average_accuracy_per_task_for_user(user_id), else: []
+    task_reaction_times = if user_id, do: Exercices.average_reaction_time_per_task_for_user(user_id), else: []
+
+    IO.inspect(task_accuracies, label: "ACCURACIES")
+    IO.inspect(task_reaction_times, label: "REACTIONS")
+
 
     {:ok,
      assign(socket,
@@ -26,9 +32,13 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
        user_id: user_id,
        user_name: user_name,
        tasks: tasks,
+       task_accuracies: task_accuracies,
+       task_reaction_times: task_reaction_times,
        full_screen?: false,
        selected_task_id: nil,
        selected_result_type: nil,
+       show_accuracy_chart?: false,
+       show_reaction_chart?: false,
        sort_field: :inserted_at,
        sort_order: :desc
      )}
@@ -54,6 +64,14 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
       |> filter_by_result_type(selected_result_type)
 
     {:noreply, assign(socket, results: filtered_results, selected_result_type: selected_result_type)}
+  end
+
+  def handle_event("toggle_accuracy_chart", _params, socket) do
+    {:noreply, assign(socket, show_accuracy_chart?: !socket.assigns.show_accuracy_chart?)}
+  end
+
+  def handle_event("toggle_reaction_chart", _params, socket) do
+    {:noreply, assign(socket, show_reaction_chart?: !socket.assigns.show_reaction_chart?)}
   end
 
   def handle_event("sort_by", %{"field" => field_str}, socket) do
@@ -145,6 +163,23 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     <div class="p-10">
       <h1 class="text-3xl font-bold mb-6">Resultados de {@user_name}</h1>
 
+      <div class="flex gap-4 mb-4">
+        <button phx-click="toggle_accuracy_chart" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">
+          <%= if @show_accuracy_chart?, do: "Esconder Gráfico de Precisão", else: "Ver Gráfico de Precisão" %>
+        </button>
+        <button phx-click="toggle_reaction_chart" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow">
+          <%= if @show_reaction_chart?, do: "Esconder Gráfico de Reação", else: "Ver Gráfico de Reação" %>
+        </button>
+      </div>
+
+      <%= if @show_accuracy_chart? do %>
+        <.chart_modal title="Precisão Média por Tarefa" event="toggle_accuracy_chart" hook="AccuracyChart" chart_data={@task_accuracies} field="avg_accuracy" label="Precisão Média (%)" />
+      <% end %>
+
+      <%= if @show_reaction_chart? do %>
+        <.chart_modal title="Tempo Médio de Reação por Tarefa" event="toggle_reaction_chart" hook="ReactionChart" chart_data={@task_reaction_times} field="avg_reaction_time" label="Tempo Médio (ms)"/>
+      <% end %>
+
       <div class="flex flex-wrap items-end justify-between gap-6 mb-6">
         <div class="flex gap-4">
           <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded shadow min-w-[180px]">
@@ -232,6 +267,32 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
           </tbody>
         </table>
       <% end %>
+    </div>
+    """
+  end
+  attr :title, :string, required: true
+  attr :event, :string, required: true
+  attr :hook, :string, required: true
+  attr :chart_data, :any, required: true
+  attr :field, :string, required: true
+  attr :label, :string, required: true
+
+  defp chart_modal(assigns) do
+    ~H"""
+    <div id="chart-modal" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+      <div class="bg-white rounded-lg shadow-lg w-full max-w-4xl p-6 relative">
+        <button phx-click={@event} class="absolute top-3 right-3 text-gray-500 hover:text-red-600 text-xl font-bold" aria-label="Fechar">
+          ×
+        </button>
+
+        <h3 class="text-xl font-bold mb-4"><%= @title %></h3>
+
+        <canvas id={"chart-#{@hook}"} phx-hook={@hook} data-chart={Jason.encode!(@chart_data)} data-field={@field} data-label={@label} class="w-full h-96"></canvas>
+
+        <%= if Enum.any?(@chart_data, fn t -> Map.get(t, String.to_existing_atom(@field)) |> is_nil() end) do %>
+          <p class="text-xs text-gray-500 mt-2 italic">* Algumas tarefas não têm dados disponíveis.</p>
+        <% end %>
+      </div>
     </div>
     """
   end

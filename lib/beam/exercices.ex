@@ -435,4 +435,158 @@ defmodule Beam.Exercices do
     })
     |> Repo.insert()
   end
+
+  def average_accuracy_per_task(opts \\ %{}) do
+    age_range = Map.get(opts, :age_range)
+    gender = Map.get(opts, :gender)
+    education = Map.get(opts, :education)
+    therapist_user_id = Map.get(opts, :therapist_user_id)
+
+    base_query =
+      from r in Beam.Exercices.Result,
+        join: u in Beam.Accounts.User, on: r.user_id == u.id,
+        join: p in Beam.Accounts.Patient, on: u.id == p.user_id,
+        join: t in Beam.Exercices.Task, on: r.task_id == t.id,
+        where: u.type == "Paciente"
+
+    base_query =
+      if therapist_user_id do
+        from [r, u, p, t] in base_query,
+          join: th in Beam.Accounts.Therapist, on: p.therapist_id == th.therapist_id,
+          where: th.user_id == ^therapist_user_id
+      else
+        base_query
+      end
+
+    base_query =
+      if age_range do
+        {min_age, max_age} = age_range
+
+        from [r, u, p, t] in base_query,
+          where:
+            fragment(
+              "FLOOR(DATE_PART('year', AGE(current_date, ?)))",
+              p.birth_date
+            ) >= ^min_age and
+            fragment(
+              "FLOOR(DATE_PART('year', AGE(current_date, ?)))",
+              p.birth_date
+            ) <= ^max_age
+      else
+        base_query
+      end
+
+    base_query =
+      if is_binary(gender) and gender not in ["", "Todos os géneros"] do
+        from [r, u, p, t] in base_query,
+          where: p.gender == ^gender
+      else
+        base_query
+      end
+
+    base_query =
+      if is_binary(education) and education not in ["", "Todos os níveis"] do
+        from [r, u, p, t] in base_query,
+          where: p.education_level == ^education
+      else
+        base_query
+      end
+
+    final_query =
+      from [r, _u, _p, t] in base_query,
+        group_by: [r.task_id, t.name],
+        select: %{
+          task_name: t.name,
+          avg_accuracy: avg(r.accuracy)
+        }
+
+    Repo.all(final_query)
+  end
+
+  def average_reaction_time_per_task(opts \\ %{}) do
+    age_range = Map.get(opts, :age_range)
+    gender = Map.get(opts, :gender)
+    education = Map.get(opts, :education)
+    therapist_user_id = Map.get(opts, :therapist_user_id)
+
+    base_query =
+      from r in Beam.Exercices.Result,
+        join: u in Beam.Accounts.User, on: r.user_id == u.id,
+        join: p in Beam.Accounts.Patient, on: u.id == p.user_id,
+        join: t in Beam.Exercices.Task, on: r.task_id == t.id,
+        where: u.type == "Paciente"
+
+    base_query =
+      if therapist_user_id do
+        from [r, u, p, t] in base_query,
+          join: th in Beam.Accounts.Therapist, on: p.therapist_id == th.therapist_id,
+          where: th.user_id == ^therapist_user_id
+      else
+        base_query
+      end
+
+    base_query =
+      if age_range do
+        {min_age, max_age} = age_range
+
+        from [r, u, p, t] in base_query,
+          where:
+            fragment("FLOOR(DATE_PART('year', AGE(current_date, ?)))", p.birth_date) >= ^min_age and
+            fragment("FLOOR(DATE_PART('year', AGE(current_date, ?)))", p.birth_date) <= ^max_age
+      else
+        base_query
+      end
+
+    base_query =
+      if is_binary(gender) and gender not in ["", "Todos os géneros"] do
+        from [r, u, p, t] in base_query,
+          where: p.gender == ^gender
+      else
+        base_query
+      end
+
+    base_query =
+      if is_binary(education) and education not in ["", "Todos os níveis"] do
+        from [r, u, p, t] in base_query,
+          where: p.education_level == ^education
+      else
+        base_query
+      end
+
+    final_query =
+      from [r, _u, _p, t] in base_query,
+        group_by: [r.task_id, t.name],
+        select: %{
+          task_name: t.name,
+          avg_reaction_time: avg(r.reaction_time)
+        }
+
+    Repo.all(final_query)
+  end
+
+  def average_accuracy_per_task_for_user(user_id) do
+    from(r in Beam.Exercices.Result,
+      join: t in Beam.Exercices.Task, on: r.task_id == t.id,
+      where: r.user_id == ^user_id,
+      group_by: [r.task_id, t.name],
+      select: %{
+        task_name: t.name,
+        avg_accuracy: avg(r.accuracy)
+      }
+    )
+    |> Repo.all()
+  end
+
+  def average_reaction_time_per_task_for_user(user_id) do
+    from(r in Beam.Exercices.Result,
+      join: t in Beam.Exercices.Task, on: r.task_id == t.id,
+      where: r.user_id == ^user_id,
+      group_by: [r.task_id, t.name],
+      select: %{
+        task_name: t.name,
+        avg_reaction_time: avg(r.reaction_time)
+      }
+    )
+    |> Repo.all()
+  end
 end
