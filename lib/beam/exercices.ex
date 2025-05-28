@@ -589,4 +589,31 @@ defmodule Beam.Exercices do
     )
     |> Repo.all()
   end
+
+  def list_configuration_accesses_for_config(config_id) do
+    from(a in Beam.Exercices.ExerciseConfigurationAccess,
+      where: a.configuration_id == ^config_id,
+      join: p in Beam.Accounts.Patient,
+      on: a.patient_id == p.patient_id,
+      preload: [configuration: :task, patient: p]
+    )
+    |> Beam.Repo.all()
+  end
+
+  def add_exercise_configuration_access(attrs) do
+    %Beam.Exercices.ExerciseConfigurationAccess{}
+    |> Beam.Exercices.ExerciseConfigurationAccess.changeset(attrs)
+    |> Beam.Repo.insert()
+  end
+
+  def remove_exercise_configuration_access(config_id, patient_id) do
+    from(a in Beam.Exercices.ExerciseConfigurationAccess,
+      where: a.configuration_id == ^config_id and a.patient_id == ^patient_id
+    )
+    |> Beam.Repo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      access -> Beam.Repo.delete(access)
+    end
+  end
 end

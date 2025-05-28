@@ -25,22 +25,39 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
         []
       end
 
+    access_map =
+      for config <- configs, into: %{} do
+        {config.id, Exercices.list_configuration_accesses_for_config(config.id)}
+      end
+
     {:ok,
      assign(socket,
        configs: configs,
        pacientes: pacientes,
        current_user: current_user,
        active_config_id: nil,
+       open_help: false,
        selected_config: nil,
        selected_config_for_recommendation: nil,
+       selected_config_for_access: nil,
        full_screen?: false,
-       task_id: task_id
+       task_id: task_id,
+       access_map: access_map
      )}
   end
 
   def handle_event("open_patient_select", %{"config_id" => config_id}, socket) do
     config = Enum.find(socket.assigns.configs, &("#{&1.id}" == config_id))
     {:noreply, assign(socket, active_config_id: config_id, selected_config_for_recommendation: config)}
+  end
+
+  def handle_event("open_access_select", %{"config_id" => config_id}, socket) do
+    config = Enum.find(socket.assigns.configs, &("#{&1.id}" == config_id))
+    {:noreply, assign(socket, selected_config_for_access: config)}
+  end
+
+  def handle_event("close_access_select", _params, socket) do
+    {:noreply, assign(socket, selected_config_for_access: nil)}
   end
 
   def handle_event("cancel_recommendation", _params, socket) do
@@ -78,6 +95,18 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
     end
   end
 
+  def handle_event("toggle_access", %{"config_id" => config_id, "patient_id" => patient_id}, socket) do
+    config_id = String.to_integer(config_id)
+
+    case Exercices.remove_exercise_configuration_access(config_id, patient_id) do
+      {:error, :not_found} -> Exercices.add_exercise_configuration_access(%{configuration_id: config_id, patient_id: patient_id})
+      _ -> :ok
+    end
+
+    updated = Exercices.list_configuration_accesses_for_config(config_id)
+    {:noreply, update(socket, :access_map, &Map.put(&1, config_id, updated))}
+  end
+
   def handle_event("open_details", %{"config_id" => id}, socket) do
     config = Enum.find(socket.assigns.configs, &("#{&1.id}" == id))
     {:noreply, assign(socket, selected_config: config)}
@@ -101,6 +130,10 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Erro ao esconder configuração.")}
     end
+  end
+
+  def handle_event("toggle_help", _, socket) do
+    {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
 
   def render(assigns) do
@@ -143,6 +176,13 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
                       >
                         Recomendar
                       </button>
+                      <button
+                        phx-click="open_access_select"
+                        phx-value-config_id={config.id}
+                        class="hover:underline text-blue-600"
+                      >
+                        Pacientes
+                      </button>
                     <% end %>
 
                     <button
@@ -183,6 +223,31 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
         </div>
       <% end %>
 
+      <%= if @selected_config_for_access do %>
+        <div class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
+          <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative z-50">
+            <h2 class="text-xl font-semibold mb-4">Acesso permanente</h2>
+            <div class="text-sm space-y-2">
+              <%= for p <- @pacientes do %>
+                <label class="flex items-center gap-2">
+                  <input type="checkbox"
+                         phx-click="toggle_access"
+                         phx-value-config_id={@selected_config_for_access.id}
+                         phx-value-patient_id={p.patient_id}
+                         checked={Enum.any?(@access_map[@selected_config_for_access.id] || [], &(&1.patient_id == p.patient_id))} />
+                  <%= p.user.name %>
+                </label>
+              <% end %>
+            </div>
+            <div class="mt-4 text-right">
+              <.button phx-click="close_access_select" class="bg-red-500 hover:bg-red-600 text-white">
+                Fechar
+              </.button>
+            </div>
+          </div>
+        </div>
+      <% end %>
+
       <%= if @active_config_id && @selected_config_for_recommendation do %>
         <div class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
           <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative z-50">
@@ -211,6 +276,27 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
         </div>
       <% end %>
     </div>
+    <.help_button open={@open_help}>
+      <:help>
+        <p><strong>1.</strong> Esta página permite visualizar todas as configurações personalizadas que criaste para tarefas da aplicação.</p>
+      </:help>
+
+      <:help>
+        <p><strong>2.</strong> Podes <em>Recomendar</em> uma configuração diretamente a um paciente. Ela aparecerá como recomendação visível na interface dele.</p>
+      </:help>
+
+      <:help>
+        <p><strong>3.</strong> Através do botão <em>Pacientes</em>, podes dar acesso permanente a uma configuração a qualquer paciente. Eles poderão utilizá-la quando quiserem, no modo treino, escolhendo a dificuldade <em>Criado</em>.</p>
+      </:help>
+
+      <:help>
+        <p><strong>4.</strong> O botão <em>Ver detalhes</em> permite consultar os parâmetros específicos da configuração (tempo, número de rondas, tipo de pergunta, etc.).</p>
+      </:help>
+
+      <:help>
+        <p><strong>5.</strong> Podes apagar uma configuração clicando no ícone da lata de lixo. Esta ação é permanente e remove o acesso para todos os pacientes.</p>
+      </:help>
+    </.help_button>
     """
   end
 end

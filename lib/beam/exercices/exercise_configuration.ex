@@ -10,6 +10,7 @@ defmodule Beam.Exercices.ExerciseConfiguration do
     field :hide, :boolean, default: false
 
     belongs_to :task, Beam.Exercices.Task
+    has_many :accesses, Beam.Exercices.ExerciseConfigurationAccess, foreign_key: :configuration_id
 
     timestamps(type: :utc_datetime)
   end

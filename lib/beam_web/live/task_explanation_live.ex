@@ -23,6 +23,35 @@ defmodule BeamWeb.TaskExplanationLive do
         []
       end
 
+    patient_id =
+      if current_user.type == "Paciente" do
+        Accounts.get_patient_with_user(current_user.id).patient_id
+      end
+
+    therapist_id =
+      if current_user.type == "Terapeuta" do
+        Accounts.get_therapist_by_user_id(current_user.id).therapist_id
+      end
+
+    configs =
+      cond do
+        current_user.type == "Paciente" ->
+          Exercices.list_visible_exercise_configurations_with_task()
+          |> Repo.preload(:accesses)
+          |> Enum.filter(fn c ->
+            c.task_id == task.id and Enum.any?(c.accesses, &(&1.patient_id == patient_id))
+          end)
+
+        current_user.type == "Terapeuta" ->
+          Exercices.list_visible_exercise_configurations_with_task()
+          |> Enum.filter(fn c ->
+            c.task_id == task.id and c.therapist_id == therapist_id
+          end)
+
+        true ->
+          []
+      end
+
     {:ok,
      assign(socket,
        task: task,
@@ -31,10 +60,12 @@ defmodule BeamWeb.TaskExplanationLive do
        selected_patient: nil,
        show_difficulty: false,
        selected_type: nil,
+       selected_config: nil,
        full_screen?: false,
        open_help: false,
        selected_difficulty: nil,
-       recommendation: recommendation
+       recommendation: recommendation,
+       custom_configs: configs
      )}
   end
 
@@ -42,6 +73,29 @@ defmodule BeamWeb.TaskExplanationLive do
   def handle_event("dismiss_recommendation", _params, socket) do
     Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
     {:noreply, assign(socket, recommendation: nil)}
+  end
+
+  def handle_event("start_custom_config", %{"config_id" => config_id}, socket) do
+    config = Enum.find(socket.assigns.custom_configs, &("#{&1.id}" == config_id))
+
+    query_params = "&config=" <> URI.encode(Jason.encode!(config.data))
+
+    {:noreply,
+     push_navigate(socket,
+       to:
+         "/tasks/#{socket.assigns.task.id}/training?live_action=training&difficulty=criado#{query_params}",
+       replace: true
+     )}
+  end
+
+  def handle_event("open_details", %{"config_id" => config_id}, socket) do
+    config = Enum.find(socket.assigns.custom_configs, &("#{&1.id}" == config_id))
+
+    {:noreply, assign(socket, selected_config: config)}
+  end
+
+  def handle_event("close_details", _params, socket) do
+    {:noreply, assign(socket, selected_config: nil)}
   end
 
   def handle_event("start_task", %{"type" => "test"}, socket) do
@@ -62,8 +116,6 @@ defmodule BeamWeb.TaskExplanationLive do
       else
         nil
       end
-
-    IO.inspect(config, label: "[TaskExplanationLive] Config passed for navigation")
 
     query_params =
       if config do
@@ -99,12 +151,21 @@ defmodule BeamWeb.TaskExplanationLive do
             {:noreply, put_flash(socket, :error, "Erro: Terapeuta não encontrado.")}
 
           therapist ->
+            difficulty =
+              case socket.assigns.selected_difficulty do
+                "criado" -> :criado
+                "facil" -> :facil
+                "medio" -> :medio
+                "dificil" -> :dificil
+                _ -> nil
+              end
+
             case Exercices.recommend_task(%{
                    task_id: socket.assigns.task.id,
                    patient_id: selected_patient_id,
                    therapist_id: therapist.therapist_id,
                    type: socket.assigns.selected_type,
-                   difficulty: socket.assigns.selected_difficulty
+                   difficulty: difficulty
                  }) do
               {:ok, _recommendation} ->
                 {:noreply,
@@ -153,13 +214,14 @@ defmodule BeamWeb.TaskExplanationLive do
     {:noreply, assign(socket, selected_type: type)}
   end
 
-  @impl true
+@impl true
   def render(assigns) do
     ~H"""
     <div class="flex h-9/10 bg-gray-200 p-6 shadow-md rounded-lg flex flex-col mt-8">
       <h1 class="text-2xl font-bold text-gray-800 text-center mb-4">
         {@task.name}
       </h1>
+
       <div class="justify-center flex space-x-4 mb-6">
         <.link navigate={~p"/tasks"}>
           <.button class="w-40">Voltar</.button>
@@ -181,14 +243,41 @@ defmodule BeamWeb.TaskExplanationLive do
                   </select>
                 </form>
 
-                <%= if @selected_difficulty do %>
-                  <.link navigate={
-                    ~p"/tasks/#{@task.id}/training?live_action=training&difficulty=#{@selected_difficulty}"
-                  }>
-                    <.button class="mt-2 w-full text-white p-2 rounded-md hover:bg-green-600">
-                      Iniciar
-                    </.button>
-                  </.link>
+                <%= if @selected_difficulty == "criado" do %>
+                  <%= if Enum.empty?(@custom_configs) do %>
+                    <div class="mt-2 text-red-500 text-sm">Nenhuma configuração disponível</div>
+                  <% else %>
+                    <div class="mt-2">
+                      <p class="text-sm font-semibold mb-1">Escolha uma configuração:</p>
+                      <%= for config <- @custom_configs do %>
+                        <div class="flex justify-between items-center px-2 py-1 hover:bg-blue-100 rounded">
+                          <button
+                            phx-click="start_custom_config"
+                            phx-value-config_id={config.id}
+                            class="text-sm text-left w-full"
+                          >
+                            <%= config.name %>
+                          </button>
+                          <button
+                            type="button"
+                            phx-click="open_details"
+                            phx-value-config_id={config.id}
+                            class="text-gray-900 hover:text-blue-600 ml-2"
+                          >
+                            ?
+                          </button>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <%= if @selected_difficulty do %>
+                    <.link navigate={~p"/tasks/#{@task.id}/training?live_action=training&difficulty=#{@selected_difficulty}"}>
+                      <.button class="mt-2 w-full text-white p-2 rounded-md hover:bg-green-600">
+                        Iniciar
+                      </.button>
+                    </.link>
+                  <% end %>
                 <% end %>
               </div>
             <% end %>
@@ -227,7 +316,6 @@ defmodule BeamWeb.TaskExplanationLive do
                       <option value="facil" selected={@selected_difficulty == "facil"}>Fácil</option>
                       <option value="medio" selected={@selected_difficulty == "medio"}>Médio</option>
                       <option value="dificil" selected={@selected_difficulty == "dificil"}>Difícil</option>
-                      <option value="criado" selected={@selected_difficulty == "criado"}>Criado</option>
                     </select>
                   <% end %>
                 </form>
@@ -246,6 +334,7 @@ defmodule BeamWeb.TaskExplanationLive do
           </div>
           <div class="relative">
             <.button class="w-40 text-white" phx-click="toggle_difficulty">Experimentar Tarefa</.button>
+
             <%= if @show_difficulty do %>
               <div class="absolute bg-white border rounded-md shadow-md p-2 mt-2 w-48" phx-click-away="close_difficulty">
                 <form phx-change="select_difficulty">
@@ -258,20 +347,70 @@ defmodule BeamWeb.TaskExplanationLive do
                   </select>
                 </form>
 
+               <%= if @selected_difficulty == "criado" do %>
+                <%= if Enum.empty?(@custom_configs) do %>
+                  <div class="mt-2 text-red-500 text-sm">Nenhuma configuração disponível</div>
+                <% else %>
+                  <div class="mt-2">
+                    <p class="text-sm font-semibold mb-1">Escolha uma configuração:</p>
+                    <%= for config <- @custom_configs do %>
+                      <div class="flex justify-between items-center px-2 py-1 hover:bg-blue-100 rounded">
+                        <button
+                          phx-click="start_custom_config"
+                          phx-value-config_id={config.id}
+                          class="text-sm text-left w-full"
+                        >
+                          <%= config.name %>
+                        </button>
+                        <button
+                          type="button"
+                          phx-click="open_details"
+                          phx-value-config_id={config.id}
+                          class="text-gray-900 hover:text-blue-600 ml-2"
+                        >
+                          ?
+                        </button>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              <% else %>
                 <%= if @selected_difficulty do %>
-                  <.link navigate={
-                    ~p"/tasks/#{@task.id}/training?live_action=training&difficulty=#{@selected_difficulty}"
-                  }>
+                  <.link navigate={~p"/tasks/#{@task.id}/training?live_action=training&difficulty=#{@selected_difficulty}"}>
                     <.button class="mt-2 w-full text-white p-2 rounded-md hover:bg-green-600">
                       Iniciar
                     </.button>
                   </.link>
                 <% end %>
+              <% end %>
               </div>
             <% end %>
           </div>
         <% end %>
       </div>
+
+      <%= if @selected_config do %>
+        <div class="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center">
+          <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg relative z-50">
+            <h2 class="text-xl font-semibold mb-4">Detalhes da Configuração</h2>
+
+            <div class="max-h-96 overflow-y-auto text-sm">
+              <%= for {key, val} <- @selected_config.data do %>
+                <div class="mb-2">
+                  <span class="font-semibold"><%= BeamWeb.ExerciseConfig.Labels.label_for(key) %>:</span>
+                  <span><%= inspect(val) %></span>
+                </div>
+              <% end %>
+            </div>
+
+            <div class="mt-4 text-right">
+              <.button phx-click="close_details" class="bg-red-500 hover:bg-red-600 text-white">
+                Fechar
+              </.button>
+            </div>
+          </div>
+        </div>
+      <% end %>
 
       <%= if @recommendation do %>
         <div class="bg-white border border-blue-300 rounded-md p-4 mb-6 shadow-md">
@@ -304,16 +443,16 @@ defmodule BeamWeb.TaskExplanationLive do
         class="block w-full whitespace-pre-line h-80 rounded-md border-0 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-400 bg-white p-3 resize-none overflow-auto"
         readonly
       >
-          <%= @task.description %>
-        </textarea>
+        <%= @task.description %>
+      </textarea>
     </div>
     <.help_button open={@open_help}>
       <:help>
-        <p><strong>1.</strong> Esta página é a pagina relativa aos exercicios da aplicação.</p>
+        <p><strong>1.</strong> Esta página é a página relativa aos exercícios da aplicação.</p>
       </:help>
 
       <:help>
-        <p><strong>2.</strong> Lê a descrição com atenção antes de fazeres o exercicio pela primeira vez.</p>
+        <p><strong>2.</strong> Lê a descrição com atenção antes de fazeres o exercício pela primeira vez.</p>
       </:help>
 
       <:help :if={@current_user.type == "Paciente"}>
@@ -321,7 +460,11 @@ defmodule BeamWeb.TaskExplanationLive do
       </:help>
 
       <:help :if={@current_user.type == "Paciente"}>
-        <p><strong>4.</strong> No botão <em>Começar Teste</em>, irás realizar a tarefa em modo teste.</p>
+        <p><strong>4.</strong> Se escolheres a dificuldade <em>Criado</em>, poderás aceder a configurações personalizadas, criadas e definidas pelo teu terapeuta.</p>
+      </:help>
+
+      <:help :if={@current_user.type == "Paciente"}>
+        <p><strong>5.</strong> No botão <em>Começar Teste</em>, irás realizar a tarefa em modo teste.</p>
       </:help>
 
       <:help :if={@current_user.type == "Terapeuta"}>
