@@ -159,7 +159,7 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
         </div>
 
         <%= if @show_chart? do %>
-          <.chart_modal title="Precisão Média por Tarefa" event="toggle_chart" hook="AccuracyChart"
+          <.chart_modal title="Precisão Média por Tarefa" event="toggle_chart" hook="AccuracyStatChart"
             chart_data={@task_accuracies} field="avg_accuracy" label="Precisão Média (%)"
             age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
             selected_age_range={@selected_age_range} selected_gender={@selected_gender}
@@ -167,7 +167,7 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
         <% end %>
 
         <%= if @show_reaction_chart? do %>
-          <.chart_modal title="Tempo Médio de Reação por Tarefa" event="toggle_reaction_chart" hook="ReactionChart"
+          <.chart_modal title="Tempo Médio de Reação por Tarefa" event="toggle_reaction_chart" hook="ReactionStatChart"
             chart_data={@task_reaction_times} field="avg_reaction_time" label="Tempo Médio (ms)"
             age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
             selected_age_range={@selected_age_range} selected_gender={@selected_gender}
@@ -188,8 +188,6 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
     """
   end
 
-  # pie_modal
-
   attr :title, :string, required: true
   attr :event, :string, required: true
   attr :hook, :string, required: true
@@ -205,7 +203,6 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
     </div>
     """
   end
-
 
   attr :title, :string, required: true
   attr :event, :string, required: true

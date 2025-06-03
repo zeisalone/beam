@@ -52,6 +52,10 @@ defmodule BeamWeb.TaskExplanationLive do
           []
       end
 
+    show_diagnostic_prompt =
+      current_user.type == "Paciente" and
+        not Exercices.has_taken_diagnostic_test?(current_user.id, task.id)
+
     {:ok,
      assign(socket,
        task: task,
@@ -65,7 +69,8 @@ defmodule BeamWeb.TaskExplanationLive do
        open_help: false,
        selected_difficulty: nil,
        recommendation: recommendation,
-       custom_configs: configs
+       custom_configs: configs,
+       show_diagnostic_prompt: show_diagnostic_prompt
      )}
   end
 
@@ -73,6 +78,13 @@ defmodule BeamWeb.TaskExplanationLive do
   def handle_event("dismiss_recommendation", _params, socket) do
     Exercices.mark_recommendation_as_seen(socket.assigns.task.id, socket.assigns.current_user.id)
     {:noreply, assign(socket, recommendation: nil)}
+  end
+
+  def handle_event("start_diagnostic_test", _params, socket) do
+    {:noreply,
+     push_navigate(socket,
+       to: ~p"/tasks/#{socket.assigns.task.id}/test?live_action=test"
+     )}
   end
 
   def handle_event("start_custom_config", %{"config_id" => config_id}, socket) do
@@ -409,6 +421,18 @@ defmodule BeamWeb.TaskExplanationLive do
               </.button>
             </div>
           </div>
+        </div>
+      <% end %>
+
+      <%= if @show_diagnostic_prompt do %>
+        <div class="bg-white p-3 mb-4 rounded shadow text-gray-800 text-sm">
+          Ainda não fez o teste diagnóstico.
+          <button
+            phx-click="start_diagnostic_test"
+            class="font-semibold underline text-blue-600 hover:text-blue-800 ml-1"
+          >
+            Começar?
+          </button>
         </div>
       <% end %>
 

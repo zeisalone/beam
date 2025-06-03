@@ -20,6 +20,8 @@ defmodule BeamWeb.Results.ResultsMainLive do
          show_category_modal: false,
          full_screen?: false,
          patients: patients,
+         filtered_patients: patients,
+         patient_search: "",
          tasks: tasks,
          categories: categories,
          open_help: false
@@ -32,7 +34,7 @@ defmodule BeamWeb.Results.ResultsMainLive do
   end
 
   def handle_event("close_modal", _params, socket) do
-    {:noreply, assign(socket, show_modal: false)}
+    {:noreply, assign(socket, show_modal: false, patient_search: "", filtered_patients: socket.assigns.patients)}
   end
 
   def handle_event("open_task_modal", _params, socket) do
@@ -55,7 +57,6 @@ defmodule BeamWeb.Results.ResultsMainLive do
     case Accounts.get_user_id_by_patient_id(patient_id) do
       nil ->
         {:noreply, socket}
-
       user_id ->
         {:noreply, push_navigate(socket, to: ~p"/results/per_user?user_id=#{user_id}")}
     end
@@ -73,11 +74,24 @@ defmodule BeamWeb.Results.ResultsMainLive do
     {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
 
+  def handle_event("search_patient", %{"search" => search_term}, socket) do
+    filtered_patients =
+      socket.assigns.patients
+      |> Enum.filter(fn p ->
+        String.contains?(
+          String.downcase(p.user.name),
+          String.downcase(search_term || "")
+        )
+      end)
+
+    {:noreply, assign(socket, patient_search: search_term, filtered_patients: filtered_patients)}
+  end
+
   def render(assigns) do
     ~H"""
     <div class="p-10 text-center">
       <div class="mx-auto max-w-md bg-white border border-gray-300 rounded-xl shadow-lg p-6">
-      <h2 class="text-3xl font-bold mb-6">Resultados</h2>
+        <h2 class="text-3xl font-bold mb-6">Resultados</h2>
         <div class="flex flex-col space-y-4 items-center">
           <.link navigate={~p"/results/general"} class="w-full rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
             Ver Estatísticas Gerais
@@ -96,12 +110,26 @@ defmodule BeamWeb.Results.ResultsMainLive do
 
       <%= if @show_modal do %>
         <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-          <div class="bg-white p-6 rounded shadow-lg">
+          <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-7 flex flex-col">
             <h2 class="text-xl font-bold mb-4">Selecionar Utilizador</h2>
             <form phx-submit="select_patient">
-              <select name="patient_id" class="border p-2 rounded w-full">
-                <%= for patient <- @patients do %>
+              <div class="mb-3">
+                <input
+                  type="text"
+                  name="search"
+                  placeholder="Pesquisar paciente..."
+                  phx-change="search_patient"
+                  value={@patient_search}
+                  class="w-full border rounded px-3 py-2 mb-2 focus:ring-2 focus:ring-blue-500"
+                  autocomplete="off"
+                />
+              </div>
+              <select name="patient_id" class="border p-2 rounded w-full no-arrow-select" size="6">
+                <%= for patient <- @filtered_patients do %>
                   <option value={patient.id}>{patient.user.name}</option>
+                <% end %>
+                <%= if Enum.empty?(@filtered_patients) do %>
+                  <option disabled selected>Nenhum paciente encontrado</option>
                 <% end %>
               </select>
               <div class="mt-4 flex justify-end space-x-2">
@@ -117,10 +145,10 @@ defmodule BeamWeb.Results.ResultsMainLive do
 
       <%= if @show_task_modal do %>
         <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-          <div class="bg-white p-6 rounded shadow-lg">
+          <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-7 flex flex-col">
             <h2 class="text-xl font-bold mb-4">Selecionar Exercício</h2>
             <form phx-submit="select_task">
-              <select name="task_id" class="border p-2 rounded w-full">
+              <select name="task_id" class="border p-2 rounded w-full no-arrow-select" size="6">
                 <%= for task <- @tasks do %>
                   <option value={task.id}>{task.name}</option>
                 <% end %>
@@ -138,10 +166,10 @@ defmodule BeamWeb.Results.ResultsMainLive do
 
       <%= if @show_category_modal do %>
         <div class="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-          <div class="bg-white p-6 rounded shadow-lg">
+          <div class="bg-white rounded-2xl shadow-lg max-w-md w-full p-7 flex flex-col">
             <h2 class="text-xl font-bold mb-4">Selecionar Categoria</h2>
             <form phx-submit="select_category">
-              <select name="category" class="border p-2 rounded w-full">
+              <select name="category" class="border p-2 rounded w-full no-arrow-select" size="6">
                 <%= for category <- @categories do %>
                   <option value={category}><%= category %></option>
                 <% end %>

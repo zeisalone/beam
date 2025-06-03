@@ -20,16 +20,20 @@ defmodule BeamWeb.TaskController do
     current_user = conn.assigns.current_user
     tasks = Exercices.list_tasks()
 
-    unseen_tasks =
+    pending_diagnostics =
       if current_user.type == "Paciente" do
-        Exercices.list_unseen_recommendations(current_user.id)
+        tasks
+        |> Enum.map(fn task ->
+          {task.id, not Exercices.has_taken_diagnostic_test?(current_user.id, task.id)}
+        end)
+        |> Enum.into(%{})
       else
-        []
+        %{}
       end
 
     render(conn, :index,
       tasks: tasks,
-      unseen_tasks: unseen_tasks,
+      pending_diagnostics: pending_diagnostics,
       tag_colors: @tag_colors
     )
   end

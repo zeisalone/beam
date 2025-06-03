@@ -34,6 +34,8 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
      assign(socket,
        configs: configs,
        pacientes: pacientes,
+       filtered_pacientes: pacientes,
+       patient_search: "",
        current_user: current_user,
        active_config_id: nil,
        open_help: false,
@@ -48,7 +50,13 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
 
   def handle_event("open_patient_select", %{"config_id" => config_id}, socket) do
     config = Enum.find(socket.assigns.configs, &("#{&1.id}" == config_id))
-    {:noreply, assign(socket, active_config_id: config_id, selected_config_for_recommendation: config)}
+    {:noreply,
+    assign(socket,
+      active_config_id: config_id,
+      selected_config_for_recommendation: config,
+      filtered_pacientes: socket.assigns.pacientes,
+      patient_search: ""
+    )}
   end
 
   def handle_event("open_access_select", %{"config_id" => config_id}, socket) do
@@ -61,7 +69,13 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
   end
 
   def handle_event("cancel_recommendation", _params, socket) do
-    {:noreply, assign(socket, active_config_id: nil, selected_config_for_recommendation: nil)}
+    {:noreply,
+    assign(socket,
+      active_config_id: nil,
+      selected_config_for_recommendation: nil,
+      patient_search: "",
+      filtered_pacientes: socket.assigns.pacientes
+    )}
   end
 
   def handle_event("recommend_config", %{"config_id" => config_id, "patient_id" => patient_id}, socket) do
@@ -135,6 +149,17 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
   def handle_event("toggle_help", _, socket) do
     {:noreply, update(socket, :open_help, fn open -> !open end)}
   end
+
+  def handle_event("search_patient", %{"search" => search_term}, socket) do
+    filtered =
+      socket.assigns.pacientes
+      |> Enum.filter(fn p ->
+        String.contains?(String.downcase(p.user.name), String.downcase(search_term || ""))
+      end)
+
+    {:noreply, assign(socket, patient_search: search_term, filtered_pacientes: filtered)}
+  end
+
 
   def render(assigns) do
     ~H"""
@@ -256,10 +281,23 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
             <form phx-submit="recommend_config" class="flex flex-col gap-4">
               <input type="hidden" name="config_id" value={@selected_config_for_recommendation.id} />
 
-              <select name="patient_id" class="rounded border px-2 py-2 text-sm">
-                <option value="">Escolha o paciente</option>
-                <%= for p <- @pacientes do %>
+              <div>
+                <input
+                  type="text"
+                  name="search"
+                  placeholder="Pesquisar paciente..."
+                  phx-change="search_patient"
+                  value={@patient_search}
+                  class="w-full border rounded px-3 py-2 mb-2 focus:ring-2 focus:ring-blue-500"
+                  autocomplete="off"
+                />
+              </div>
+              <select name="patient_id" class="rounded border px-2 py-2 text-sm no-arrow-select" size="6">
+                <%= for p <- @filtered_pacientes do %>
                   <option value={p.patient_id}><%= p.user.name %></option>
+                <% end %>
+                <%= if Enum.empty?(@filtered_pacientes) do %>
+                  <option disabled selected>Nenhum paciente encontrado</option>
                 <% end %>
               </select>
 
@@ -267,7 +305,7 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
                 <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
                   Confirmar
                 </button>
-                <button type="button" phx-click="cancel_recommendation" class="text-gray-600 hover:underline">
+                <button type="button" phx-click="cancel_recommendation" class="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white">
                   Cancelar
                 </button>
               </div>

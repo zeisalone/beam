@@ -570,6 +570,7 @@ defmodule Beam.Exercices do
       where: r.user_id == ^user_id,
       group_by: [r.task_id, t.name],
       select: %{
+        task_id: r.task_id,
         task_name: t.name,
         avg_accuracy: avg(r.accuracy)
       }
@@ -583,6 +584,7 @@ defmodule Beam.Exercices do
       where: r.user_id == ^user_id,
       group_by: [r.task_id, t.name],
       select: %{
+        task_id: r.task_id,
         task_name: t.name,
         avg_reaction_time: avg(r.reaction_time)
       }
@@ -615,5 +617,51 @@ defmodule Beam.Exercices do
       nil -> {:error, :not_found}
       access -> Beam.Repo.delete(access)
     end
+  end
+
+  def has_taken_diagnostic_test?(user_id, task_id) do
+    Repo.exists?(
+      from t in Test,
+        where: t.user_id == ^user_id and t.task_id == ^task_id and t.attempt_number == 1
+    )
+  end
+
+  def get_diagnostic_test(user_id, task_id) do
+    Repo.one(
+      from t in Test,
+        where: t.user_id == ^user_id and t.task_id == ^task_id and t.attempt_number == 1,
+        join: r in Result, on: r.id == t.result_id,
+        preload: [result: r],
+        select: r
+    )
+  end
+
+  def average_test_accuracy_per_task_for_user(user_id) do
+    from(test in Beam.Exercices.Test,
+      join: result in Beam.Exercices.Result, on: test.result_id == result.id,
+      join: task in Beam.Exercices.Task, on: test.task_id == task.id,
+      where: test.user_id == ^user_id,
+      group_by: [task.id, task.name],
+      select: %{
+        task_id: task.id,
+        task_name: task.name,
+        avg_accuracy: avg(result.accuracy)
+      }
+    )
+    |> Repo.all()
+  end
+
+  def average_test_accuracy_per_task do
+    from(test in Beam.Exercices.Test,
+      join: result in Beam.Exercices.Result, on: test.result_id == result.id,
+      join: task in Beam.Exercices.Task, on: test.task_id == task.id,
+      group_by: [task.id, task.name],
+      select: %{
+        task_id: task.id,
+        task_name: task.name,
+        avg_accuracy: avg(result.accuracy)
+      }
+    )
+    |> Repo.all()
   end
 end

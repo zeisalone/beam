@@ -71,5 +71,11 @@
 .animate-slide-out {
   animation: slide-out 0.4s ease-in forwards;
 }
+.no-arrow-select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-image: none !important;
+}
 
 /* This file is for your main application CSS */
