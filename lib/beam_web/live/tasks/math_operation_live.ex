@@ -82,23 +82,35 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(_), do: nil
+  defp cancel_if_ref(timer_ref) when is_reference(timer_ref), do: Process.cancel_timer(timer_ref)
+  defp cancel_if_ref(_), do: :ok
 
   @impl true
   def handle_info(:show_equation, socket) do
-    ref = Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
-    {:noreply, assign(socket, phase: :show_equation, timer_ref: ref)}
+    if socket.assigns.phase == :waiting do
+      cancel_if_ref(socket.assigns.timer_ref)
+      ref = Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
+      {:noreply, assign(socket, phase: :show_equation, timer_ref: ref)}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
   def handle_info(:show_options, socket) do
-    ref = Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
+    if socket.assigns.phase == :show_equation do
+      cancel_if_ref(socket.assigns.timer_ref)
+      ref = Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
 
-    {:noreply,
-     assign(socket,
-       phase: :show_options,
-       start_time: System.system_time(:millisecond),
-       timer_ref: ref
-     )}
+      {:noreply,
+      assign(socket,
+        phase: :show_options,
+        start_time: System.system_time(:millisecond),
+        timer_ref: ref
+      )}
+    else
+      {:noreply, socket}
+    end
   end
 
   @impl true
@@ -111,7 +123,7 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   end
 
   defp handle_omission(socket) do
-    Process.cancel_timer(socket.assigns.timer_ref)
+    cancel_if_ref(socket.assigns.timer_ref)
 
     current_index = socket.assigns.current_question_index
     total_questions = socket.assigns.total_questions
@@ -126,7 +138,8 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
   @impl true
   def handle_event("submit_answer", %{"answer" => answer}, socket) do
-    Process.cancel_timer(socket.assigns.timer_ref)
+  if socket.assigns.phase == :show_options do
+    cancel_if_ref(socket.assigns.timer_ref)
 
     reaction_time = System.system_time(:millisecond) - socket.assigns.start_time
     user_answer = String.to_integer(answer)
@@ -146,30 +159,33 @@ defmodule BeamWeb.Tasks.MathOperationLive do
     else
       next_question(socket, correct: correct, wrong: wrong, total_reaction_time: total_reaction_time)
     end
+  else
+    {:noreply, socket}
   end
+end
 
   defp next_question(socket, updates) do
-    Process.cancel_timer(socket.assigns.timer_ref)
+    cancel_if_ref(socket.assigns.timer_ref)
 
     current_index = socket.assigns.current_question_index + 1
     {new_a, new_b, new_operator, new_result, new_options} =
       Enum.at(socket.assigns.questions, current_index)
 
-    ref = Process.send_after(self(), :show_equation, socket.assigns.equation_display_time)
+    ref = Process.send_after(self(), :show_equation, @initial_pause)
 
     {:noreply,
-     assign(socket,
-       current_question_index: current_index,
-       a: new_a,
-       b: new_b,
-       operator: new_operator,
-       result: new_result,
-       options: new_options,
-       phase: :waiting,
-       start_time: nil,
-       timer_ref: ref
-     )
-     |> assign(updates)}
+    assign(socket,
+      current_question_index: current_index,
+      a: new_a,
+      b: new_b,
+      operator: new_operator,
+      result: new_result,
+      options: new_options,
+      phase: :waiting,
+      start_time: nil,
+      timer_ref: ref
+    )
+    |> assign(updates)}
   end
 
   defp save_results(correct, wrong, omitted, total_reaction_time, socket) do
