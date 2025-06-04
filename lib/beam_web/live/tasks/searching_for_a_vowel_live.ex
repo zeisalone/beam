@@ -65,9 +65,19 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   defp atomize_keys(map) do
     for {k, v} <- map, into: %{} do
       key = if is_binary(k), do: String.to_existing_atom(k), else: k
-      {key, v}
+      value =
+        if key == :num_distractors_list and is_binary(v) do
+          v
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.map(&String.to_integer/1)
+        else
+          v
+        end
+      {key, value}
     end
   end
+
 
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
@@ -85,7 +95,13 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   end
 
   def handle_info(:start_phase, socket) do
-    phase = SearchingForAVowel.generate_phase(socket.assigns.target, socket.assigns.difficulty)
+    phase =
+      if socket.assigns.difficulty == :criado do
+        SearchingForAVowel.generate_phase(socket.assigns.target, :criado, socket.assigns.config)
+      else
+        SearchingForAVowel.generate_phase(socket.assigns.target, socket.assigns.difficulty)
+      end
+
     Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
 
     {:noreply,

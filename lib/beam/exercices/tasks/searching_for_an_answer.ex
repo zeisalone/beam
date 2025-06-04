@@ -13,7 +13,8 @@ defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
     %{
       phase_duration: 3000,
       cycle_duration: 2000,
-      total_phases: 20
+      total_phases: 20,
+      num_distractors_list: [1, 2, 3]
     }
   end
 
@@ -21,22 +22,28 @@ defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
     [
       {:phase_duration, :integer, label: "Duração da fase (ms)"},
       {:cycle_duration, :integer, label: "Duração entre fases (ms)"},
-      {:total_phases, :integer, label: "Número total de fases"}
+      {:total_phases, :integer, label: "Número total de fases"},
+      {:num_distractors_list, :select, label: "Número de Distratores", options: [
+        "1", "2", "3", "1,2", "2,3", "1,2,3"
+      ], multiple: false}
     ]
   end
+
 
   def validate_config(%{
       phase_duration: phase,
       cycle_duration: cycle,
-      total_phases: total
+      total_phases: total,
+      num_distractors_list: ndlist
     })
-    when is_integer(phase) and is_integer(cycle) and is_integer(total) and
-           phase > 0 and cycle > 0 and total > 0 do
-  :ok
-end
+      when is_integer(phase) and is_integer(cycle) and is_integer(total) and
+            phase > 0 and cycle > 0 and total > 0 and
+            (is_list(ndlist) or is_binary(ndlist)) do
+    :ok
+  end
 
-def validate_config(_),
-  do: {:error, %{message: "Parâmetros inválidos: espera-se inteiros positivos para duração e total de fases"}}
+  def validate_config(_),
+    do: {:error, %{message: "Parâmetros inválidos: verifique a configuração."}}
 
   @doc """
   Generate the target shape and color for the task.
@@ -51,17 +58,20 @@ def validate_config(_),
   @doc """
   Generate a phase with the target and random distractors.
   """
-  def generate_phase(target, difficulty) do
+  def generate_phase(target, difficulty, config \\ %{}) do
     positions = Enum.shuffle(@positions)
 
     num_distractors =
       case difficulty do
         :facil -> 1
-        :medio -> Enum.random(1..2)
-        :dificil -> Enum.random(2..3)
-        # Temporário
-        :criado -> Enum.random(1..3)
-        _ -> Enum.random(1..3)
+        :medio -> Enum.random([1,2])
+        :dificil -> Enum.random([2,3])
+        :criado ->
+          config
+          |> Map.get(:num_distractors_list, "1,2,3")
+          |> to_distractor_list()
+          |> Enum.random()
+        _ -> Enum.random([1,2,3])
       end
 
     distractors =
@@ -72,6 +82,16 @@ def validate_config(_),
 
     [Map.put(target, :position, Enum.at(positions, 0)) | distractors]
   end
+
+  defp to_distractor_list(list) when is_list(list), do: list
+  defp to_distractor_list(val) when is_integer(val), do: [val]
+  defp to_distractor_list(val) when is_binary(val) do
+    val
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.to_integer/1)
+  end
+  defp to_distractor_list(_), do: [1, 2, 3]
 
   defp generate_distractor(target, position, difficulty) do
     shape_options = @shapes -- [target.shape]
