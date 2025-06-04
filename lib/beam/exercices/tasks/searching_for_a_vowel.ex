@@ -1,5 +1,7 @@
 defmodule Beam.Exercices.Tasks.SearchingForAVowel do
   @behaviour Beam.Exercices.Configurable
+  alias Beam.Accounts.Patient
+  alias Beam.Repo
   @moduledoc """
   Logic for the Searching for the Vowel task.
   """
@@ -38,6 +40,24 @@ defmodule Beam.Exercices.Tasks.SearchingForAVowel do
 
   def validate_config(_),
     do: {:error, %{message: "Parâmetros inválidos! Verifique a configuração."}}
+
+  def get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      %Patient{birth_date: birth_date} when not is_nil(birth_date) ->
+        today = Date.utc_today()
+        years = Date.diff(today, birth_date) |> div(365)
+        {:ok, max(years, 0)}
+      _ -> :error
+    end
+  end
+
+  def choose_level_by_age(user_id) do
+    case get_patient_age(user_id) do
+      {:ok, age} when is_integer(age) and age <= 10 -> :facil
+      {:ok, age} when is_integer(age) and age >= 11 -> :medio
+      _ -> :medio
+    end
+  end
 
   @doc """
   Generate the target vowel and color.

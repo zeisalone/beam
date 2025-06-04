@@ -12,7 +12,15 @@ defmodule BeamWeb.Tasks.MathOperationLive do
     current_user = Map.get(session, "current_user", nil)
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty", "medio") |> maybe_to_atom()
+    difficulty_raw = Map.get(session, "difficulty", nil)
+    difficulty =
+      case difficulty_raw do
+        nil -> nil
+        "nil" -> nil
+        "" -> nil
+        _ -> maybe_to_atom(difficulty_raw)
+      end
+
     full_screen = Map.get(session, "full_screen?", true)
 
     raw_config = Map.get(session, "config", %{})
@@ -30,37 +38,43 @@ defmodule BeamWeb.Tasks.MathOperationLive do
     answer_time_limit = Map.get(config, :answer_time_limit, 4000)
 
     if current_user do
-      questions = build_questions(difficulty, config)
+      questions =
+        if is_nil(difficulty) do
+          build_questions(nil, config, current_user)
+        else
+          build_questions(difficulty, config)
+        end
+
       {first_a, first_b, first_operator, first_result, first_options} = Enum.at(questions, 0)
 
       if connected?(socket), do: Process.send_after(self(), :show_equation, @initial_pause)
 
       {:ok,
-       assign(socket,
-         current_user: current_user,
-         user_id: current_user.id,
-         task_id: task_id,
-         questions: questions,
-         current_question_index: 0,
-         correct: 0,
-         wrong: 0,
-         omitted: 0,
-         total_reaction_time: 0,
-         live_action: live_action,
-         difficulty: difficulty,
-         total_questions: @total_questions,
-         a: first_a,
-         b: first_b,
-         operator: first_operator,
-         result: first_result,
-         options: first_options,
-         full_screen?: full_screen,
-         phase: :waiting,
-         start_time: nil,
-         equation_display_time: equation_display_time,
-         answer_time_limit: answer_time_limit,
-         timer_ref: nil
-       )}
+      assign(socket,
+        current_user: current_user,
+        user_id: current_user.id,
+        task_id: task_id,
+        questions: questions,
+        current_question_index: 0,
+        correct: 0,
+        wrong: 0,
+        omitted: 0,
+        total_reaction_time: 0,
+        live_action: live_action,
+        difficulty: difficulty,
+        total_questions: @total_questions,
+        a: first_a,
+        b: first_b,
+        operator: first_operator,
+        result: first_result,
+        options: first_options,
+        full_screen?: full_screen,
+        phase: :waiting,
+        start_time: nil,
+        equation_display_time: equation_display_time,
+        answer_time_limit: answer_time_limit,
+        timer_ref: nil
+      )}
     else
       {:ok, push_navigate(socket, to: "/users/log_in")}
     end
@@ -71,6 +85,10 @@ defmodule BeamWeb.Tasks.MathOperationLive do
 
   defp build_questions(level, _config),
     do: (for _ <- 1..@total_questions, do: MathOperation.generate_question(level))
+
+  defp build_questions(_level, _config, current_user) do
+    for _ <- 1..@total_questions, do: MathOperation.generate_question(current_user)
+  end
 
   defp atomize_keys(map) do
     for {k, v} <- map, into: %{} do

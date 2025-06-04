@@ -1,5 +1,7 @@
 defmodule Beam.Exercices.Tasks.CodeOfSymbols do
   @behaviour Beam.Exercices.Configurable
+  alias Beam.Accounts.Patient
+  alias Beam.Repo
   @moduledoc """
   Tarefa que apresenta um código de símbolos (figuras com cores), onde cada símbolo representa um número específico.
   O utilizador deverá preencher uma grelha com os números corretos associados a cada símbolo.
@@ -33,6 +35,24 @@ defmodule Beam.Exercices.Tasks.CodeOfSymbols do
   end
 
   def validate_config(_), do: {:error, %{message: "Parâmetros inválidos"}}
+
+  def get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      %Patient{birth_date: birth_date} when not is_nil(birth_date) ->
+        today = Date.utc_today()
+        years = Date.diff(today, birth_date) |> div(365)
+        {:ok, max(years, 0)}
+      _ -> :error
+    end
+  end
+
+  def choose_level_by_age(user_id) do
+    case get_patient_age(user_id) do
+      {:ok, age} when is_integer(age) and age <= 10 -> :facil
+      {:ok, age} when is_integer(age) and age >= 11 -> :medio
+      _ -> :medio
+    end
+  end
 
   @doc """
   Gera o código de símbolo -> número aleatoriamente consoante a dificuldade ou configuração.

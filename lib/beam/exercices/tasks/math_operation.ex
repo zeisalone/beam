@@ -4,6 +4,9 @@ defmodule Beam.Exercices.Tasks.MathOperation do
   Lógica para a tarefa de operações matemáticas, com suporte a diferentes dificuldades.
   """
 
+  alias Beam.Accounts.Patient
+  alias Beam.Repo
+
   @impl true
   def default_config do
     %{
@@ -55,7 +58,48 @@ defmodule Beam.Exercices.Tasks.MathOperation do
   def generate_question(:facil), do: generate_question(:facil, nil)
   def generate_question(:medio), do: generate_question(:medio, nil)
   def generate_question(:dificil), do: generate_question(:dificil, nil)
+
+  def generate_question(user = %Beam.Accounts.User{}) do
+    case get_patient_age(user.id) do
+      {:ok, age} ->
+        IO.inspect({:idade_do_paciente, age})
+        generate_question_by_age(age)
+      _ ->
+        generate_question(:medio, nil)
+    end
+  end
+
   def generate_question(_), do: generate_question(:medio, nil)
+
+  defp get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      %Patient{birth_date: birth_date} when not is_nil(birth_date) ->
+        today = Date.utc_today()
+        years = Date.diff(today, birth_date) |> div(365)
+        {:ok, max(years, 0)}
+      _ -> :error
+    end
+  end
+
+  defp generate_question_by_age(age) when is_integer(age) and age >= 0 and age <= 6 do
+    a = :rand.uniform(5)
+    b = :rand.uniform(5)
+    correct_answer = a + b
+    options = generate_options(correct_answer, :facil)
+    {a, b, "+", correct_answer, options}
+  end
+
+  defp generate_question_by_age(age) when is_integer(age) and age >= 7 and age <= 10 do
+    a = :rand.uniform(9)
+    b = :rand.uniform(9)
+    correct_answer = a + b
+    options = generate_options(correct_answer, :facil)
+    {a, b, "+", correct_answer, options}
+  end
+
+  defp generate_question_by_age(age) when is_integer(age) and age >= 11 do
+    generate_question(:medio, nil)
+  end
 
   defp generate_question_default_range(max) do
     a = :rand.uniform(max)

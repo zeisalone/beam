@@ -13,7 +13,16 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     current_user = Map.get(session, "current_user", nil)
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
+    difficulty_raw = Map.get(session, "difficulty", nil)
+
+    difficulty =
+      case difficulty_raw do
+        nil -> nil
+        "nil" -> nil
+        "" -> nil
+        _ -> maybe_to_atom(difficulty_raw)
+      end
+
     raw_config = Map.get(session, "config", %{})
 
     config =
@@ -27,38 +36,46 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     total_attempts = Map.get(config, :total_attempts, @default_total_attempts)
 
     if current_user do
+      chosen_difficulty =
+        if is_nil(difficulty) do
+          ReverseSequence.choose_level_by_age(current_user.id)
+        else
+          difficulty
+        end
+
       if connected?(socket), do: Process.send_after(self(), :start_round, 500)
 
       {:ok,
-       assign(socket,
-         current_user: current_user,
-         user_id: current_user.id,
-         task_id: task_id,
-         sequence: [],
-         user_input: [],
-         correct: 0,
-         wrong: 0,
-         omitted: 0,
-         full_sequence: 0,
-         attempts: 0,
-         start_time: nil,
-         total_reaction_time: 0,
-         timeout_ref: nil,
-         live_action: live_action,
-         difficulty: difficulty,
-         show_sequence: false,
-         full_screen?: true,
-         game_finished: false,
-         preparing: true,
-         sequence_duration: sequence_duration,
-         response_timeout: response_timeout,
-         total_attempts: total_attempts,
-         config: config
-       )}
+      assign(socket,
+        current_user: current_user,
+        user_id: current_user.id,
+        task_id: task_id,
+        sequence: [],
+        user_input: [],
+        correct: 0,
+        wrong: 0,
+        omitted: 0,
+        full_sequence: 0,
+        attempts: 0,
+        start_time: nil,
+        total_reaction_time: 0,
+        timeout_ref: nil,
+        live_action: live_action,
+        difficulty: chosen_difficulty,
+        show_sequence: false,
+        full_screen?: true,
+        game_finished: false,
+        preparing: true,
+        sequence_duration: sequence_duration,
+        response_timeout: response_timeout,
+        total_attempts: total_attempts,
+        config: config
+      )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
     end
   end
+
 
   defp atomize_keys(map) do
     for {k, v} <- map, into: %{} do

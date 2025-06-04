@@ -11,9 +11,17 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     current_user = Map.get(session, "current_user")
     task_id = Map.get(session, "task_id")
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
-    full_screen = Map.get(session, "full_screen?", true)
+    difficulty_raw = Map.get(session, "difficulty", nil)
 
+    difficulty =
+      case difficulty_raw do
+        nil -> nil
+        "nil" -> nil
+        "" -> nil
+        _ -> maybe_to_atom(difficulty_raw)
+      end
+
+    full_screen = Map.get(session, "full_screen?", true)
     raw_config = Map.get(session, "config", %{})
 
     config =
@@ -25,8 +33,15 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
       Map.get(config, :response_timeout, Map.get(@default_timeouts, difficulty, @default_timeouts.default))
 
     if current_user do
-      code = CodeOfSymbols.generate_code(difficulty, config)
-      grid = CodeOfSymbols.generate_grid(code, difficulty, config)
+      chosen_difficulty =
+        if is_nil(difficulty) do
+          CodeOfSymbols.choose_level_by_age(current_user.id)
+        else
+          difficulty
+        end
+
+      code = CodeOfSymbols.generate_code(chosen_difficulty, config)
+      grid = CodeOfSymbols.generate_grid(code, chosen_difficulty, config)
 
       socket =
         assign(socket,
@@ -42,7 +57,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
           start_time: nil,
           total_reaction_time: 0,
           live_action: live_action,
-          difficulty: difficulty,
+          difficulty: chosen_difficulty,
           show_code: true,
           game_started: false,
           game_finished: false,
@@ -134,16 +149,16 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     end)
   end
 
-  defp grid_columns_class(grid_cell_count) do
-    cols =
-      grid_cell_count
-      |> :math.sqrt()
-      |> Float.round()
-      |> trunc()
-
-    "grid grid-cols-#{cols} gap-4"
+  defp grid_class(size) do
+    case size do
+      16 -> "grid grid-cols-4 gap-4"
+      25 -> "grid grid-cols-5 gap-4"
+      36 -> "grid grid-cols-6 gap-3"
+      49 -> "grid grid-cols-7 gap-3"
+      64 -> "grid grid-cols-8 gap-2"
+      _  -> "grid grid-cols-4 gap-4"
+    end
   end
-
 
   defp save_attempt(socket, result_id) do
     case socket.assigns.live_action do
@@ -240,8 +255,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
 
           <% else %>
             <form phx-submit="submit" phx-change="update_input" class="mt-6">
-              <% grid_class = grid_columns_class(length(@grid)) %>
-                <div class={grid_class}>
+              <div class={grid_class(length(@grid))}>
                 <%= for {%{shape: shape, color: color}, index} <- Enum.with_index(@grid) do %>
                   <div class="flex flex-col items-center text-center">
                     <div class="w-8 h-8"><%= raw(render_svg(shape, color)) %></div>

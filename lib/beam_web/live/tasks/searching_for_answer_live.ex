@@ -10,7 +10,16 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     current_user = Map.get(session, "current_user", nil)
     task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
+    difficulty_raw = Map.get(session, "difficulty", nil)
+
+    difficulty =
+      case difficulty_raw do
+        nil -> nil
+        "nil" -> nil
+        "" -> nil
+        _ -> maybe_to_atom(difficulty_raw)
+      end
+
     full_screen = Map.get(session, "full_screen?", true)
 
     raw_config = Map.get(session, "config", %{})
@@ -26,42 +35,50 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     total_phases = Map.get(config, :total_phases)
 
     if current_user do
+      chosen_difficulty =
+        if is_nil(difficulty) do
+          SearchingForAnAnswer.choose_level_by_age(current_user.id)
+        else
+          difficulty
+        end
+
       if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
 
       target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
 
       {:ok,
-       assign(socket,
-         current_user: current_user,
-         user_id: current_user.id,
-         task_id: task_id,
-         target: target,
-         phase: [],
-         correct: 0,
-         wrong: 0,
-         omitted: 0,
-         total_reaction_time: 0,
-         current_phase_start: nil,
-         user_response: nil,
-         current_phase_index: 1,
-         awaiting_phase: false,
-         results: [],
-         calculating_results: false,
-         in_cycle: false,
-         live_action: live_action,
-         difficulty: difficulty,
-         full_screen?: full_screen,
-         preparing_task: true,
-         show_intro: false,
-         phase_duration: phase_duration,
-         cycle_duration: cycle_duration,
-         total_phases: total_phases,
-         config: config
-       )}
+      assign(socket,
+        current_user: current_user,
+        user_id: current_user.id,
+        task_id: task_id,
+        target: target,
+        phase: [],
+        correct: 0,
+        wrong: 0,
+        omitted: 0,
+        total_reaction_time: 0,
+        current_phase_start: nil,
+        user_response: nil,
+        current_phase_index: 1,
+        awaiting_phase: false,
+        results: [],
+        calculating_results: false,
+        in_cycle: false,
+        live_action: live_action,
+        difficulty: chosen_difficulty,
+        full_screen?: full_screen,
+        preparing_task: true,
+        show_intro: false,
+        phase_duration: phase_duration,
+        cycle_duration: cycle_duration,
+        total_phases: total_phases,
+        config: config
+      )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
     end
   end
+
 
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)

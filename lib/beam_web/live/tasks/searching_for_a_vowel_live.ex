@@ -7,10 +7,19 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
   @intro_duration 3000
 
   def mount(_params, session, socket) do
-    current_user = Map.get(session, "current_user")
-    task_id = Map.get(session, "task_id")
+    current_user = Map.get(session, "current_user", nil)
+    task_id = Map.get(session, "task_id", nil)
     live_action = Map.get(session, "live_action", "training") |> maybe_to_atom()
-    difficulty = Map.get(session, "difficulty") |> maybe_to_atom() || :medio
+    difficulty_raw = Map.get(session, "difficulty", nil)
+
+    difficulty =
+      case difficulty_raw do
+        nil -> nil
+        "nil" -> nil
+        "" -> nil
+        _ -> maybe_to_atom(difficulty_raw)
+      end
+
     full_screen = Map.get(session, "full_screen?", true)
     raw_config = Map.get(session, "config", %{})
 
@@ -25,6 +34,13 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
     total_phases = Map.get(config, :total_phases)
 
     if current_user do
+      chosen_difficulty =
+        if is_nil(difficulty) do
+          SearchingForAVowel.choose_level_by_age(current_user.id)
+        else
+          difficulty
+        end
+
       if connected?(socket), do: Process.send_after(self(), :prepare_task, 0)
 
       target = Map.put(SearchingForAVowel.generate_target(), :position, "up")
@@ -48,7 +64,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
          calculating_results: false,
          in_cycle: false,
          live_action: live_action,
-         difficulty: difficulty,
+         difficulty: chosen_difficulty,
          full_screen?: full_screen,
          preparing_task: true,
          show_intro: false,

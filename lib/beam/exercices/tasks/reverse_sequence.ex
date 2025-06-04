@@ -1,6 +1,7 @@
 defmodule Beam.Exercices.Tasks.ReverseSequence do
   @behaviour Beam.Exercices.Configurable
-
+  alias Beam.Accounts.Patient
+  alias Beam.Repo
   @moduledoc """
   Tarefa que exibe uma sequência de números e o usuário deve digitá-los na ordem inversa.
   """
@@ -33,6 +34,24 @@ defmodule Beam.Exercices.Tasks.ReverseSequence do
           is_integer(ta) and ta > 0 and
           is_integer(sl) and sl > 0 do
     :ok
+  end
+
+  def get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      %Patient{birth_date: birth_date} when not is_nil(birth_date) ->
+        today = Date.utc_today()
+        years = Date.diff(today, birth_date) |> div(365)
+        {:ok, max(years, 0)}
+      _ -> :error
+    end
+  end
+
+  def choose_level_by_age(user_id) do
+    case get_patient_age(user_id) do
+      {:ok, age} when is_integer(age) and age <= 10 -> :facil
+      {:ok, age} when is_integer(age) and age >= 11 -> :medio
+      _ -> :medio
+    end
   end
 
   @doc """

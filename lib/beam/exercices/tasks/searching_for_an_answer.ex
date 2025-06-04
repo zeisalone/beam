@@ -3,6 +3,8 @@ defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
   @moduledoc """
   Logic for the Searching for an Answer task.
   """
+  alias Beam.Accounts.Patient
+  alias Beam.Repo
 
   @shapes ["circle", "square", "triangle", "star", "heart"]
   @colors ["red", "blue", "green", "yellow"]
@@ -184,6 +186,24 @@ defmodule Beam.Exercices.Tasks.SearchingForAnAnswer do
       Float.round(correct / total * 100, 2)
     else
       0.0
+    end
+  end
+
+  def get_patient_age(user_id) do
+    case Repo.get_by(Patient, user_id: user_id) do
+      %Patient{birth_date: birth_date} when not is_nil(birth_date) ->
+        today = Date.utc_today()
+        years = Date.diff(today, birth_date) |> div(365)
+        {:ok, max(years, 0)}
+      _ -> :error
+    end
+  end
+
+  def choose_level_by_age(user_id) do
+    case get_patient_age(user_id) do
+      {:ok, age} when is_integer(age) and age <= 10 -> :facil
+      {:ok, age} when is_integer(age) and age >= 11 -> :medio
+      _ -> :medio
     end
   end
 
