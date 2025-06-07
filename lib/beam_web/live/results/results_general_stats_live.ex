@@ -21,8 +21,8 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
-    task_accuracies = Exercices.average_accuracy_per_task(%{therapist_user_id: current_user.id})
-    task_reaction_times = Exercices.average_reaction_time_per_task(%{therapist_user_id: current_user.id})
+    task_accuracies = Exercices.average_accuracy_per_task()
+    task_reaction_times = Exercices.average_reaction_time_per_task()
     age_distribution_all = Accounts.age_distribution_all_patients()
     age_distribution_mine = Accounts.age_distribution_for_therapist(current_user.id)
 
@@ -87,21 +87,20 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
     filters = %{
       age_range: age_range,
       gender: if(gender in ["", "Todos os géneros"], do: nil, else: gender),
-      education: if(education in ["", "Todos os níveis"], do: nil, else: education),
-      therapist_user_id: socket.assigns.current_user.id
+      education: if(education in ["", "Todos os níveis"], do: nil, else: education)
     }
 
     filtered_accuracies = Exercices.average_accuracy_per_task(filters)
     filtered_reactions = Exercices.average_reaction_time_per_task(filters)
 
     {:noreply,
-     assign(socket,
-       selected_age_range: age,
-       selected_gender: gender,
-       selected_education: education,
-       task_accuracies: filtered_accuracies,
-       task_reaction_times: filtered_reactions
-     )}
+    assign(socket,
+      selected_age_range: age,
+      selected_gender: gender,
+      selected_education: education,
+      task_accuracies: filtered_accuracies,
+      task_reaction_times: filtered_reactions
+    )}
   end
 
   @impl true

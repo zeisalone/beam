@@ -21,14 +21,12 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     results = if user_id, do: Exercices.list_results_by_user(user_id), else: []
     average_general = Exercices.average_accuracy_per_task()
     average_general_reaction = Exercices.average_reaction_time_per_task()
-    task_accuracies =
-      if user_id, do: Exercices.average_accuracy_per_task_for_user(user_id), else: []
-    task_reaction_times =
-      if user_id, do: Exercices.average_reaction_time_per_task_for_user(user_id), else: []
-    test_accuracies =
-      if user_id, do: Exercices.average_test_accuracy_per_task_for_user(user_id), else: []
+    task_accuracies = if user_id, do: Exercices.average_accuracy_per_task_for_user(user_id), else: []
+    task_reaction_times = if user_id, do: Exercices.average_reaction_time_per_task_for_user(user_id), else: []
+    test_accuracies = if user_id, do: Exercices.average_test_accuracy_per_task_for_user(user_id), else: []
     test_accuracies_general = Exercices.average_test_accuracy_per_task()
     duo_test_accuracies = duo_test_chart_data(test_accuracies, test_accuracies_general)
+    diagnostic_results = if user_id, do: Exercices.diagnostic_test_results_per_task_for_user(user_id), else: []
 
     {:ok,
      assign(socket,
@@ -47,6 +45,7 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
        all_task_reaction_times: task_reaction_times,
        general_accuracies: average_general,
        general_reaction_times: average_general_reaction,
+       diagnostic_results: diagnostic_results,
        full_screen?: false,
        selected_task_id: nil,
        selected_result_type: nil,
@@ -57,10 +56,41 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
        compare_mode: "none",
        test_accuracies: test_accuracies,
        test_accuracies_general: test_accuracies_general,
-       duo_test_accuracies: duo_test_accuracies
+       duo_test_accuracies: duo_test_accuracies,
+       show_temporal_chart?: false,
+       temporal_chart_metric: :accuracy,
+       temporal_chart_period: :day,
+       temporal_chart_limit: 30,
+       temporal_chart_task_id: nil,
+       temporal_chart_data: (if user_id, do: Exercices.aggregate_user_stats_over_time(user_id, :accuracy, :day, 30, nil), else: [])
      )}
   end
 
+  @impl true
+  def handle_event("toggle_temporal_chart", _params, socket) do
+    {:noreply, assign(socket, show_temporal_chart?: !socket.assigns.show_temporal_chart?)}
+  end
+
+  @impl true
+  def handle_event("update_temporal_chart", %{"metric" => metric, "period" => period, "task_id" => task_id, "limit" => limit_str}, socket) do
+    user_id = socket.assigns.user_id
+    metric_atom = String.to_existing_atom(metric)
+    period_atom = String.to_existing_atom(period)
+    limit = String.to_integer(limit_str)
+    task_id_val =
+      if task_id in [nil, "", "all"], do: nil, else: String.to_integer(task_id)
+
+    data = Exercices.aggregate_user_stats_over_time(user_id, metric_atom, period_atom, limit, task_id_val)
+
+    {:noreply,
+      assign(socket,
+        temporal_chart_data: data,
+        temporal_chart_metric: metric_atom,
+        temporal_chart_period: period_atom,
+        temporal_chart_limit: limit,
+        temporal_chart_task_id: task_id_val
+      )}
+  end
 
   @impl true
   def handle_event("update_task_filters", %{"task_ids" => task_ids}, socket) do
@@ -204,11 +234,10 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
 
   defp chart_data_with_compare(assigns) do
     compare_mode = Map.get(assigns, :compare_mode, "none")
+    user_data = assigns.task_accuracies
     case compare_mode do
       "media_geral" ->
-        user_data = assigns.task_accuracies
         general_data = assigns.general_accuracies
-
         general_map = Map.new(general_data, &{&1.task_name, &1.avg_accuracy})
 
         Enum.map(user_data, fn d ->
@@ -218,18 +247,27 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             general_avg_accuracy: Map.get(general_map, d.task_name)
           }
         end)
-      _ ->
-        assigns.task_accuracies
+      "teste_diagnostico" ->
+        diag_map = Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_accuracy})
+
+        Enum.map(user_data, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_accuracy: d.avg_accuracy,
+            diagnostic_accuracy: Map.get(diag_map, d.task_name)
+          }
+        end)
+
+      _ -> user_data
     end
   end
 
   defp chart_reaction_data_with_compare(assigns) do
     compare_mode = Map.get(assigns, :compare_mode, "none")
+    user_data = assigns.task_reaction_times
     case compare_mode do
       "media_geral" ->
-        user_data = assigns.task_reaction_times
         general_data = assigns.general_reaction_times
-
         general_map = Map.new(general_data, &{&1.task_name, &1.avg_reaction_time})
 
         Enum.map(user_data, fn d ->
@@ -239,8 +277,18 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             general_avg_reaction_time: Map.get(general_map, d.task_name)
           }
         end)
-      _ ->
-        assigns.task_reaction_times
+      "teste_diagnostico" ->
+        diag_map = Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_reaction_time})
+
+        Enum.map(user_data, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_reaction_time: d.avg_reaction_time,
+            diagnostic_reaction_time: Map.get(diag_map, d.task_name)
+          }
+        end)
+
+      _ -> user_data
     end
   end
 
@@ -264,6 +312,9 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     general_map =
       Map.new(assigns.test_accuracies_general, &{&1.task_name, &1.avg_accuracy})
 
+    diag_map =
+      Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_accuracy})
+
     case compare_mode do
       "media_geral" ->
         Enum.map(filtered, fn d ->
@@ -271,6 +322,14 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             task_name: d.task_name,
             avg_accuracy: d.avg_accuracy,
             general_avg_accuracy: Map.get(general_map, d.task_name)
+          }
+        end)
+      "teste_diagnostico" ->
+        Enum.map(filtered, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_accuracy: d.avg_accuracy,
+            diagnostic_accuracy: Map.get(diag_map, d.task_name)
           }
         end)
       _ -> filtered
@@ -285,14 +344,17 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
       <h1 class="text-3xl font-bold mb-6">Resultados de {@user_name}</h1>
 
       <div class="flex gap-4 mb-4">
-        <button phx-click="toggle_accuracy_chart" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">
-          <%= if @show_accuracy_chart?, do: "Esconder Gráfico de Precisão", else: "Ver Gráfico de Precisão" %>
+        <button phx-click="toggle_accuracy_chart" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow min-w-[180px] h-13">
+          <%= if @show_accuracy_chart?, do: "Esconder Gráfico de Precisão", else: "Gráfico de Precisão" %>
         </button>
-        <button phx-click="toggle_reaction_chart" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow">
-          <%= if @show_reaction_chart?, do: "Esconder Gráfico de Reação", else: "Ver Gráfico de Reação" %>
+        <button phx-click="toggle_reaction_chart" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow min-w-[180px] h-13">
+          <%= if @show_reaction_chart?, do: "Esconder Gráfico de Reação", else: "Gráfico de Reação" %>
         </button>
-        <button phx-click="toggle_duo_test_chart" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded shadow">
-          <%= if @show_duo_test_chart?, do: "Esconder Gráfico de Testes", else: "Ver Gráfico de Testes" %>
+        <button phx-click="toggle_duo_test_chart" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded shadow min-w-[180px] h-13">
+          <%= if @show_duo_test_chart?, do: "Esconder Gráfico de Testes", else: "Gráfico de Testes" %>
+        </button>
+        <button phx-click="toggle_temporal_chart" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow min-w-[180px] h-13">
+          <%= if @show_temporal_chart?, do: "Esconder Gráfico Temporal", else: "Gráfico Temporal" %>
         </button>
       </div>
 
@@ -308,27 +370,35 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
         <.chart_modal title="Precisão dos Testes" event="toggle_duo_test_chart" hook="AccuracyChart" chart_data={duo_test_chart_data_with_compare(assigns)} field="avg_accuracy" label="Precisão Média (%)" tasks={@tasks} visible_task_ids={@visible_task_ids} show_filter_panel={@show_task_filter_panel} show_compare_panel={@show_compare_panel} compare_mode={@compare_mode} user_name={@user_name} />
       <% end %>
 
+      <%= if @show_temporal_chart? do %>
+        <.temporal_chart_modal chart_data={@temporal_chart_data} metric={@temporal_chart_metric}  period={@temporal_chart_period}  tasks={@tasks} selected_task_id={@temporal_chart_task_id} temporal_chart_limit={@temporal_chart_limit} on_update="update_temporal_chart"/>
+      <% end %>
+
       <div class="flex flex-wrap items-end justify-between gap-6 mb-6">
         <div class="flex gap-4">
-          <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="bg-purple-100 text-purple-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
             <div class="text-sm font-semibold">Média de Precisão</div>
-            <div class="text-2xl font-bold">
+            <div class="text-xl font-bold mt-1">
               <%= if Enum.any?(@results) do %>
                 <%= Float.round(Enum.reduce(@results, 0, fn r, acc -> acc + r.accuracy end) / length(@results) * 100, 1) %>%
               <% else %> N/A <% end %>
             </div>
           </div>
-
-          <div class="bg-blue-100 text-blue-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="bg-blue-100 text-blue-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
             <div class="text-sm font-semibold">Média de Tempo de Reação</div>
-            <div class="text-2xl font-bold">
+            <div class="text-xl font-bold mt-1">
               <%= if Enum.any?(@results) do %>
                 <%= Float.round(Enum.reduce(@results, 0, fn r, acc -> acc + r.reaction_time end) / length(@results) / 1000, 2) %>s
               <% else %> N/A <% end %>
             </div>
           </div>
+          <div class="bg-green-100 text-green-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
+            <div class="text-sm font-semibold">Nº de Exercícios Feitos</div>
+            <div class="text-xl font-bold mt-1">
+              <%= length(@results) %>
+            </div>
+          </div>
         </div>
-
         <div class="flex gap-4 flex-wrap items-end">
           <form phx-change="filter_task">
             <label for="task_filter" class="block text-sm font-medium text-gray-700 mb-1">Filtrar por Tarefa:</label>
@@ -466,6 +536,11 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
                     checked={@compare_mode == "media_geral"} class="mr-2" />
                   Média Geral
                 </label>
+                <label class="flex items-center text-sm">
+                  <input type="radio" name="compare_mode" value="teste_diagnostico"
+                    checked={@compare_mode == "teste_diagnostico"} class="mr-2" />
+                  Teste Diagnóstico
+                </label>
               </div>
             </form>
           </div>
@@ -485,6 +560,92 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     """
   end
 
+  attr :chart_data, :any, required: true
+  attr :metric, :atom, required: true
+  attr :period, :atom, required: true
+  attr :temporal_chart_limit, :integer, required: true
+  attr :tasks, :list, required: true
+  attr :selected_task_id, :integer, required: false
+  attr :on_update, :string, required: true
+  defp temporal_chart_modal(assigns) do
+    ~H"""
+    <div id="temporal-chart-modal" class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-5xl h-[70vh] overflow-hidden relative">
+        <div class="flex items-center justify-between px-6 py-3 border-b">
+          <h3 class="text-2xl font-bold">Evolução Temporal</h3>
+          <button phx-click="toggle_temporal_chart" class="text-gray-500 hover:text-red-600 text-2xl font-bold" aria-label="Fechar">×</button>
+        </div>
+        <div class="px-6 pt-6">
+          <form phx-change={@on_update} class="flex gap-4 items-end flex-wrap">
+            <div>
+              <label class="block mb-1 text-sm font-medium">Métrica</label>
+              <select name="metric" class="px-3 py-1.5 text-sm border border-gray-300 rounded-md min-w-[160px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition">
+                <option value="accuracy" selected={@metric == :accuracy}>Precisão Média</option>
+                <option value="reaction_time" selected={@metric == :reaction_time}>Tempo de Reação</option>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-medium">Período</label>
+              <select name="period" id="temporal-period-select"
+                class="px-3 py-1.5 text-sm border border-gray-300 rounded-md min-w-[140px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition"
+                phx-hook="TemporalPeriodSelect">
+                <option value="day" selected={@period == :day}>Dias</option>
+                <option value="week" selected={@period == :week}>Semanas</option>
+                <option value="month" selected={@period == :month}>Meses</option>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-medium">Tarefa</label>
+              <select name="task_id"
+                class="px-3 py-1.5 text-sm border border-gray-300 rounded-md min-w-[200px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition">
+                <option value="all" selected={is_nil(@selected_task_id)}>Todas</option>
+                <%= for task <- @tasks do %>
+                  <option value={task.id} selected={@selected_task_id == task.id}><%= task.name %></option>
+                <% end %>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1 text-sm font-medium">Intervalo</label>
+              <select name="limit"
+                class="px-3 py-1.5 text-sm border border-gray-300 rounded-md min-w-[120px] focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition"
+                id="temporal-limit-select">
+                <%= if @period == :day do %>
+                  <%= for n <- [5, 10, 15, 20, 25, 30] do %>
+                    <option value={n} selected={@temporal_chart_limit == n}><%= n %> dias</option>
+                  <% end %>
+                <% else %>
+                  <%= if @period == :week do %>
+                    <%= for n <- 1..8 do %>
+                      <option value={n} selected={@temporal_chart_limit == n}><%= n %> sem.</option>
+                    <% end %>
+                  <% else %>
+                    <%= if @period == :month do %>
+                      <%= for n <- 1..6 do %>
+                        <option value={n} selected={@temporal_chart_limit == n}>
+                          <%= n %> <%= if n == 1, do: "mês", else: "meses" %>
+                        </option>
+                      <% end %>
+                    <% else %>
+                      <option value="30" selected={@temporal_chart_limit == 30}>30 dias</option>
+                    <% end %>
+                  <% end %>
+                <% end %>
+              </select>
+            </div>
+          </form>
+          <div class="mt-6 flex items-center justify-center h-[45vh]">
+            <canvas id="temporal-chart-canvas"
+                    phx-hook="TemporalChart"
+                    data-chart={Jason.encode!(@chart_data)}
+                    data-metric={to_string(@metric)}
+                    data-period={to_string(@period)}
+                    class="w-full h-full max-h-[320px]" />
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
 
   defp sort_icon(current_field, current_order, field) do
     if current_field == field do

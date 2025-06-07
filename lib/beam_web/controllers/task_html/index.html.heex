@@ -1,7 +1,7 @@
 <div class="relative w-screen left-1/2 translate-x-[-50%] max-w-screen-lg p-6">
   <h2 class="text-2xl font-bold mb-6 text-primary-700">Treinos Cognitivos e de Atenção</h2>
 
-  <div class="overflow-auto rounded-lg border border-gray-200">
+  <div class="overflow-auto rounded-lg border border-gray-300">
     <table class="w-full text-sm table-fixed">
       <thead>
         <tr class="bg-primary-50">
@@ -13,7 +13,7 @@
       </thead>
       <tbody>
         <%= for task <- @tasks do %>
-          <tr class="border-t border-gray-200 hover:bg-gray-50 transition-colors">
+          <tr class="border-t border-gray-300 hover:bg-gray-50 transition-colors">
             <td class="pr-0 pl-1 py-4 align-middle">
               <span class="text-primary-600 text-md block text-left ml-5 leading-none opacity-80 select-none">
                 <%= Beam.Exercices.TaskList.task_id(String.to_atom(task.type)) %>

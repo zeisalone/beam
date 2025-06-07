@@ -152,7 +152,7 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
 
       <div class="flex flex-wrap items-end justify-between gap-6 mb-6">
         <div class="flex gap-4">
-          <div class="bg-purple-100 text-purple-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="bg-purple-100 text-purple-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
             <div class="text-sm font-semibold">Média de Precisão</div>
             <div class="text-2xl font-bold">
               <%= if Enum.any?(@results) do %>
@@ -163,7 +163,7 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
             </div>
           </div>
 
-          <div class="bg-blue-100 text-blue-800 px-6 py-4 rounded shadow min-w-[180px]">
+          <div class="bg-blue-100 text-blue-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
             <div class="text-sm font-semibold">Média de Tempo de Reação</div>
             <div class="text-2xl font-bold">
               <%= if Enum.any?(@results) do %>
@@ -171,6 +171,13 @@ defmodule BeamWeb.Results.ResultsPerExerciseLive do
               <% else %>
                 N/A
               <% end %>
+            </div>
+          </div>
+
+          <div class="bg-green-100 text-green-800 px-8 py-3 rounded shadow min-w-[240px] h-24 flex flex-col justify-center">
+            <div class="text-sm font-semibold">Nº de Exercícios Feitos</div>
+            <div class="text-2xl font-bold">
+              <%= length(@results) %>
             </div>
           </div>
         </div>

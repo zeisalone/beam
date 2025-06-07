@@ -22,7 +22,7 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { Drag, Drop } from "./hooks/drag_drop"
-import { AccuracyChart, ReactionChart, PieChart, AccuracyStatChart, ReactionStatChart } from "./hooks/chart_hooks"
+import { AccuracyChart, ReactionChart, PieChart, AccuracyStatChart, ReactionStatChart, TemporalChart } from "./hooks/chart_hooks"
 import Chart from 'chart.js/auto'
 window.Chart = Chart
 
@@ -33,7 +33,8 @@ let Hooks = {
   ReactionChart,
   PieChart,
   AccuracyStatChart,
-  ReactionStatChart
+  ReactionStatChart,
+  TemporalChart
 };
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")

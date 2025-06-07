@@ -664,4 +664,72 @@ defmodule Beam.Exercices do
     )
     |> Repo.all()
   end
+
+  def aggregate_user_stats_over_time(user_id, metric \\ :accuracy, period \\ :day, limit \\ 30, task_id \\ nil) do
+    date_trunc =
+      case period do
+        :day -> "day"
+        :week -> "week"
+        :month -> "month"
+        _ -> "day"
+      end
+
+    metric_field =
+      case metric do
+        :reaction_time -> :reaction_time
+        _ -> :accuracy
+      end
+
+    q =
+      from r in Beam.Exercices.Result,
+        where: r.user_id == ^user_id,
+        select: %{
+          period: fragment("DATE_TRUNC(?, ?)", ^date_trunc, r.inserted_at),
+          metric: field(r, ^metric_field),
+          task_id: r.task_id
+        }
+
+    q =
+      if task_id do
+        from r in q, where: r.task_id == ^task_id
+      else
+        q
+      end
+
+    from(
+      s in subquery(q),
+      group_by: s.period,
+      select: %{
+        date: s.period,
+        value: avg(s.metric)
+      },
+      order_by: [desc: s.period],
+      limit: ^limit
+    )
+    |> Repo.all()
+    |> Enum.reverse()
+  end
+
+  def diagnostic_test_results_per_task_for_user(user_id) do
+    from(t in Beam.Exercices.Task)
+    |> Repo.all()
+    |> Enum.map(fn task ->
+      case Repo.one(
+            from test in Beam.Exercices.Test,
+              where: test.user_id == ^user_id and test.task_id == ^task.id and test.attempt_number == 1,
+              join: result in Beam.Exercices.Result, on: result.id == test.result_id,
+              select: result
+          ) do
+        nil -> nil
+        result ->
+          %{
+            task_id: task.id,
+            task_name: task.name,
+            diagnostic_accuracy: result.accuracy,
+            diagnostic_reaction_time: result.reaction_time
+          }
+      end
+    end)
+    |> Enum.filter(& &1)
+  end
 end
