@@ -15,19 +15,28 @@ defmodule BeamWeb.UserProfileLive do
         education = if user.type == "Paciente", do: Accounts.get_patient_education(user.id), else: nil
         gender = if user.type == "Paciente", do: Accounts.get_patient_gender(user.id), else: nil
 
+        specialization =
+          if user.type == "Terapeuta" do
+            therapist = Accounts.get_therapist_by_user_id(user.id)
+            therapist && therapist.specialization || "Terapeuta"
+          else
+            nil
+          end
 
         {:ok,
-         assign(socket,
-           current_user: user,
-           email: email,
-           full_screen?: false,
-           age: age,
-           gender: gender,
-           education: education,
-           open_help: false
-         )}
+        assign(socket,
+          current_user: user,
+          email: email,
+          full_screen?: false,
+          age: age,
+          gender: gender,
+          education: education,
+          specialization: specialization,
+          open_help: false
+        )}
     end
   end
+
 
   @impl true
   def handle_event("toggle_help", _, socket) do
@@ -50,7 +59,11 @@ defmodule BeamWeb.UserProfileLive do
 
       <div class="text-center mt-2">
         <h2 class="font-semibold text-xl"><%= @current_user.name %></h2>
-        <p class="text-gray-500 text-sm"><%= @current_user.type %></p>
+        <%= if @current_user.type == "Terapeuta" do %>
+          <p class="text-gray-500 text-sm"><%= @specialization %></p>
+        <% else %>
+          <p class="text-gray-500 text-sm"><%= @current_user.type %></p>
+        <% end %>
       </div>
 
       <div class="py-4 mt-2 text-gray-700 flex items-center justify-center space-x-6">

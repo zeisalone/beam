@@ -9,6 +9,40 @@ defmodule BeamWeb.UserSettingsLive do
     email_changeset = Accounts.change_user_email(user)
     password_changeset = Accounts.change_user_password(user)
 
+    default_images = [
+      "images/profile/profile.svg",
+      "images/profile/profile_female.svg"
+    ]
+
+    custom_images =
+      user.custom_images || []
+      |> Enum.concat([user.profile_image | default_images])
+      |> Enum.uniq()
+
+
+    specialization_select =
+      case user.type do
+        "Terapeuta" ->
+          therapist = Accounts.get_therapist_by_user_id(user.id)
+          case therapist && therapist.specialization do
+            "Terapeuta" -> "Terapeuta"
+            "Terapeuta Ocupacional" -> "Terapeuta Ocupacional"
+            "Psicólogo" -> "Psicólogo"
+            val when is_binary(val) -> "Outro"
+            _ -> "Terapeuta"
+          end
+        _ -> nil
+      end
+
+    specialization_other =
+      case user.type do
+        "Terapeuta" ->
+          therapist = Accounts.get_therapist_by_user_id(user.id)
+          spec = therapist && therapist.specialization
+          if spec in ["Terapeuta", "Terapeuta Ocupacional", "Psicólogo"] or is_nil(spec), do: "", else: spec
+        _ -> ""
+      end
+
     socket =
       socket
       |> allow_upload(:profile_image, accept: ~w(.jpg .jpeg .png .svg), max_entries: 1, auto_upload: true)
@@ -22,12 +56,14 @@ defmodule BeamWeb.UserSettingsLive do
       |> assign(:selected_image, user.profile_image)
       |> assign(:birth_date, (if user.type == "Paciente", do: Accounts.get_patient_birth_date(user.id), else: nil))
       |> assign(:pending_image, nil)
-      |> assign(:custom_images, Enum.uniq([user.profile_image | (user.custom_images || [])]))
+      |> assign(:custom_images, custom_images)
       |> assign(:selected_image, user.profile_image)
       |> assign(:full_screen?, false)
       |> assign(:confirm_delete_image, nil)
       |> assign(:gender, (if user.type == "Paciente", do: Accounts.get_patient_gender(user.id), else: nil))
       |> assign(:education_level, (if user.type == "Paciente", do: Accounts.get_patient_education(user.id), else: nil))
+      |> assign(:specialization_select, specialization_select)
+      |> assign(:specialization_other, specialization_other)
 
 
     {:ok, socket}
@@ -89,15 +125,18 @@ defmodule BeamWeb.UserSettingsLive do
   def handle_event("save_profile_image", _params, socket) do
     user = socket.assigns.current_user
     selected = socket.assigns.selected_image
+    default_images = [
+      "images/profile/profile.svg",
+      "images/profile/profile_female.svg"
+    ]
 
-    if selected in socket.assigns.custom_images do
+    if selected in (socket.assigns.custom_images ++ default_images) do
       case Beam.Accounts.update_user(user, %{profile_image: selected}) do
         {:ok, updated_user} ->
           {:noreply,
-           socket
-           |> assign(:current_user, updated_user)
-           |> put_flash(:info, "Imagem de perfil atualizada!")}
-
+          socket
+          |> assign(:current_user, updated_user)
+          |> put_flash(:info, "Imagem de perfil atualizada!")}
         {:error, _changeset} ->
           {:noreply, put_flash(socket, :error, "Erro ao atualizar a imagem de perfil.")}
       end
@@ -218,6 +257,35 @@ defmodule BeamWeb.UserSettingsLive do
 
       {:error, changeset} ->
         {:noreply, assign(socket, :email_form, to_form(Map.put(changeset, :action, :insert)))}
+    end
+  end
+
+  def handle_event("validate_specialization", params, socket) do
+    spec_select = Map.get(params, "specialization_select", "Terapeuta")
+    spec_other = Map.get(params, "specialization_other", "")
+    {:noreply, assign(socket, specialization_select: spec_select, specialization_other: spec_other)}
+  end
+
+  def handle_event("update_specialization", params, socket) do
+    spec =
+      case Map.get(params, "specialization_select", "Terapeuta") do
+        "Outro" -> String.trim(Map.get(params, "specialization_other", "Terapeuta"))
+        val -> val
+      end
+
+    user = socket.assigns.current_user
+    therapist = Accounts.get_therapist_by_user_id(user.id)
+
+    case therapist do
+      nil ->
+        {:noreply, put_flash(socket, :error, "Terapeuta não encontrado.")}
+      _ ->
+        case Beam.Accounts.update_therapist_specialization(therapist, spec) do
+          {:ok, _updated} ->
+            {:noreply, put_flash(socket, :info, "Especialidade atualizada!")}
+          {:error, _} ->
+            {:noreply, put_flash(socket, :error, "Erro ao atualizar especialidade.")}
+        end
     end
   end
 
@@ -347,37 +415,64 @@ defmodule BeamWeb.UserSettingsLive do
               type="date"
               name="birth_date"
               value={@birth_date}
-              class="border rounded p-2"
+              class="border border-gray-300 rounded p-2 focus:border-gray-400 focus:ring-0"
             />
-            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
+            <button type="submit" class="mt-2 rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
               Salvar
             </button>
           </form>
 
           <form phx-submit="update_gender" class="flex flex-col">
             <label class="text-sm font-semibold mb-1">Género</label>
-            <select name="gender" class="border rounded p-2">
+            <select name="gender" class="border border-gray-300 rounded p-2 focus:border-gray-400 focus:ring-0">
               <%= for g <- ["Masculino", "Feminino", "Outro"] do %>
                 <option value={g} selected={@gender == g}><%= g %></option>
               <% end %>
             </select>
-            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
+            <button type="submit" class="mt-2 rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
               Salvar
             </button>
           </form>
 
           <form phx-submit="update_education" class="flex flex-col">
             <label class="text-sm font-semibold mb-1">Escolaridade</label>
-            <select name="education_level" class="border rounded p-2">
+            <select name="education_level" class="border border-gray-300 rounded p-2 focus:border-gray-400 focus:ring-0">
               <%= for e <- ["Pré-Primaria", "1º ciclo", "2º ciclo", "3º ciclo", "Secundário", "Universitário"] do %>
                 <option value={e} selected={@education_level == e}><%= e %></option>
               <% end %>
             </select>
-            <button type="submit" class="mt-2 px-4 py-2 bg-gray-900 text-white rounded-lg text-sm hover:shadow-lg">
+            <button type="submit" class="mt-2 rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
               Salvar
             </button>
           </form>
         </div>
+      </div>
+    <% end %>
+
+    <%= if @current_user.type == "Terapeuta" do %>
+      <div class="mt-6 mb-10 max-w-sm mx-auto">
+        <form phx-change="validate_specialization" phx-submit="update_specialization" class="flex flex-col max-w-xs gap-2">
+          <label class="block font-semibold text-sm mb-1">Especialidade</label>
+          <select name="specialization_select" value={@specialization_select} class="border border-gray-300 rounded p-2 focus:border-gray-400 focus:ring-0">
+            <option value="Terapeuta" selected={@specialization_select == "Terapeuta"}>Terapeuta</option>
+            <option value="Terapeuta Ocupacional" selected={@specialization_select == "Terapeuta Ocupacional"}>Terapeuta Ocupacional</option>
+            <option value="Psicólogo" selected={@specialization_select == "Psicólogo"}>Psicólogo</option>
+            <option value="Outro" selected={@specialization_select == "Outro"}>Outro</option>
+          </select>
+          <%= if @specialization_select == "Outro" do %>
+            <input
+              type="text"
+              name="specialization_other"
+              value={@specialization_other}
+              maxlength="40"
+              placeholder="Escreva a sua especialidade"
+              class="border border-gray-300 rounded p-2 focus:border-gray-400 focus:ring-0"
+            />
+          <% end %>
+          <button type="submit" class="rounded-lg bg-black hover:bg-blue-900 py-2 px-3 text-sm font-semibold leading-6 text-white active:text-white/80">
+            Guardar Especialidade
+          </button>
+        </form>
       </div>
     <% end %>
 

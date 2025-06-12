@@ -4,6 +4,7 @@ defmodule Beam.Accounts.Therapist do
 
   schema "therapists" do
     field :therapist_id, :string
+    field :specialization, :string, default: "Terapeuta"
     belongs_to :user, Beam.Accounts.User
 
     timestamps(type: :utc_datetime)
@@ -11,8 +12,9 @@ defmodule Beam.Accounts.Therapist do
 
   def changeset(therapist, attrs) do
     therapist
-    |> cast(attrs, [:therapist_id, :user_id])
-    |> validate_required([:therapist_id, :user_id])
+    |> cast(attrs, [:therapist_id, :user_id, :specialization])
+    |> validate_required([:therapist_id, :user_id, :specialization])
+    |> validate_length(:specialization, max: 40)
     |> unique_constraint(:therapist_id)
   end
 end

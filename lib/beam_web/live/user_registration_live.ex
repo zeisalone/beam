@@ -4,11 +4,11 @@ defmodule BeamWeb.UserRegistrationLive do
   alias Beam.Accounts
   alias Beam.Accounts.User
 
-  def render(assigns) do
+ def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-sm">
       <.header class="text-center">
-        Registar uma conta
+        Registar uma conta de Terapeuta
         <:subtitle>
           Já está registado?
           <.link navigate={~p"/users/log_in"} class="font-semibold text-brand hover:underline">
@@ -32,21 +32,18 @@ defmodule BeamWeb.UserRegistrationLive do
         </.error>
 
         <.input field={@form[:name]} type="text" label="Nome" required />
-        <.input
-          field={@form[:type]}
-          type="select"
-          label="Tipo"
-          options={["Terapeuta", "Admin"]}
-          required
-        />
+        <input type="hidden" name="user[type]" value="Terapeuta" />
         <.input field={@form[:email]} type="email" label="Email" required />
         <.input field={@form[:password]} type="password" label="Palavra-passe" required />
+        <.input name="user[specialization_select]" type="select" label="Especialidade" value={@specialization_select} options={["Terapeuta", "Terapeuta Ocupacional", "Psicólogo", "Outro"]} required />
+        <%= if @specialization_select == "Outro" do %>
+          <.input name="user[specialization_other]" type="text" value={@specialization_other} maxlength="40" placeholder="Escreva a sua especialidade" required />
+        <% end %>
 
         <:actions>
           <.button phx-disable-with="A criar conta..." class="w-full">Criar conta</.button>
         </:actions>
       </.simple_form>
-
       <%= if @user_created do %>
         <div class="mt-4 text-center">
           <p>Utilizador criado com sucesso!</p>
@@ -66,7 +63,9 @@ defmodule BeamWeb.UserRegistrationLive do
         check_errors: false,
         user_created: false,
         full_screen?: false,
-        created_user: nil
+        created_user: nil,
+        specialization_select: "Terapeuta",
+        specialization_other: ""
       )
       |> assign_form(changeset)
 
@@ -74,6 +73,14 @@ defmodule BeamWeb.UserRegistrationLive do
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
+    specialization =
+      case Map.get(user_params, "specialization_select", "Terapeuta") do
+        "Outro" -> String.trim(Map.get(user_params, "specialization_other", "Terapeuta"))
+        other   -> other
+      end
+
+    user_params = Map.put(user_params, "type", "Terapeuta")
+
     case Accounts.register_user(user_params) do
       {:ok, user} ->
         {:ok, _} =
@@ -88,16 +95,15 @@ defmodule BeamWeb.UserRegistrationLive do
           socket
           |> assign(trigger_submit: true, user_created: true, created_user: user)
           |> assign_form(changeset)
-
-        case Accounts.verify_user_type(user.id) do
+        case Accounts.verify_user_type(user.id, nil, nil, nil, nil, specialization) do
           {:ok, :ok} ->
             {:noreply, socket}
 
           {:error, reason} ->
             {:noreply,
-             socket
-             |> put_flash(:error, "Erro ao verificar o tipo de utilizador: #{inspect(reason)}")
-             |> assign(user_created: false)}
+            socket
+            |> put_flash(:error, "Erro ao verificar o tipo de utilizador: #{inspect(reason)}")
+            |> assign(user_created: false)}
         end
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -105,9 +111,22 @@ defmodule BeamWeb.UserRegistrationLive do
     end
   end
 
+  def handle_event("specialization_select", %{"user" => %{"specialization_select" => select}}, socket) do
+    {:noreply, assign(socket, specialization_select: select)}
+  end
+
   def handle_event("validate", %{"user" => user_params}, socket) do
-    changeset = Accounts.change_user_registration(%User{}, user_params)
-    {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
+    specialization_select = Map.get(user_params, "specialization_select", "Terapeuta")
+    specialization_other = Map.get(user_params, "specialization_other", "")
+
+    socket =
+      socket
+      |> assign_form(Accounts.change_user_registration(%User{}, user_params))
+      |> assign(
+        specialization_select: specialization_select,
+        specialization_other: specialization_other
+      )
+    {:noreply, Map.put(socket, :form, Map.put(socket.assigns.form, :action, :validate))}
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do

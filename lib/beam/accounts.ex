@@ -80,7 +80,7 @@ defmodule Beam.Accounts do
     |> Repo.insert()
   end
 
-  def verify_user_type(user_id, therapist_id \\ nil, birth_date \\ nil, gender \\ "Masculino", education_level \\ "Pré-Primaria") do
+  def verify_user_type(user_id, therapist_id \\ nil, birth_date \\ nil, gender \\ "Masculino", education_level \\ "Pré-Primaria", specialization \\ "Terapeuta") do
     Repo.transaction(fn ->
       user = Repo.get!(User, user_id)
 
@@ -89,9 +89,13 @@ defmodule Beam.Accounts do
           therapist_id = UUID.uuid4()
 
           case Repo.insert(
-                 %Therapist{}
-                 |> Therapist.changeset(%{user_id: user.id, therapist_id: therapist_id})
-               ) do
+                %Therapist{}
+                |> Therapist.changeset(%{
+                  user_id: user.id,
+                  therapist_id: therapist_id,
+                  specialization: specialization
+                })
+              ) do
             {:ok, _therapist} -> :ok
             {:error, reason} -> Repo.rollback(reason)
           end
@@ -483,6 +487,11 @@ defmodule Beam.Accounts do
     end
   end
 
+  def update_therapist_specialization(%Beam.Accounts.Therapist{} = therapist, specialization) when is_binary(specialization) do
+    therapist
+    |> Ecto.Changeset.change(specialization: specialization)
+    |> Beam.Repo.update()
+  end
 
   def list_terapeutas do
     Repo.all(
