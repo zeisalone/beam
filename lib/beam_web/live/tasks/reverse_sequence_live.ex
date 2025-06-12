@@ -310,17 +310,21 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
               <%= Enum.join(@sequence, " ") %>
             </p>
           <% else %>
-            <form phx-submit="submit" phx-change="update_input">
+            <form phx-submit="submit" phx-change="update_input" id="reverse-sequence-form">
               <div class="flex space-x-2">
                 <%= for {_, i} <- Enum.with_index(@sequence) do %>
                   <input
+                    id={"input-#{i}"}
+                    data-index={i}
+                    phx-hook="AutoAdvanceInput"
                     type="text"
                     name={"numbers[#{i}]"}
                     inputmode="numeric"
                     pattern="[0-9]"
                     maxlength="1"
-                    class="w-12 h-12 text-center border border-gray-400 rounded-md"
+                    class="w-12 h-12 text-center border border-gray-400 rounded-md"c
                     value={Enum.at(@user_input, i) || ""}
+                    autocomplete="off"
                   />
                 <% end %>
               </div>

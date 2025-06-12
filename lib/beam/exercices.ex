@@ -494,8 +494,9 @@ defmodule Beam.Exercices do
 
     final_query =
       from [r, _u, _p, t] in base_query,
-        group_by: [r.task_id, t.name],
+        group_by: [r.task_id, t.id, t.name],
         select: %{
+          task_id: t.id,
           task_name: t.name,
           avg_accuracy: avg(r.accuracy)
         }
@@ -555,8 +556,9 @@ defmodule Beam.Exercices do
 
     final_query =
       from [r, _u, _p, t] in base_query,
-        group_by: [r.task_id, t.name],
+        group_by: [r.task_id, t.id, t.name],
         select: %{
+          task_id: t.id,
           task_name: t.name,
           avg_reaction_time: avg(r.reaction_time)
         }

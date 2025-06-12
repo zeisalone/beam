@@ -21,8 +21,23 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
-    task_accuracies = Exercices.average_accuracy_per_task()
-    task_reaction_times = Exercices.average_reaction_time_per_task()
+    task_accuracies = Exercices.average_accuracy_per_task() |> Enum.sort_by(& &1.task_id)
+    task_reaction_times = Exercices.average_reaction_time_per_task() |> Enum.sort_by(& &1.task_id)
+
+    task_accuracies_my =
+      if current_user.type == "Terapeuta" do
+        Exercices.average_accuracy_per_task(%{therapist_user_id: current_user.id}) |> Enum.sort_by(& &1.task_id)
+      else
+        []
+      end
+
+    task_reaction_times_my =
+      if current_user.type == "Terapeuta" do
+        Exercices.average_reaction_time_per_task(%{therapist_user_id: current_user.id}) |> Enum.sort_by(& &1.task_id)
+      else
+        []
+      end
+
     age_distribution_all = Accounts.age_distribution_all_patients()
     age_distribution_mine = Accounts.age_distribution_for_therapist(current_user.id)
 
@@ -39,11 +54,15 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
        open_help: false,
        stats: stats,
        show_chart?: false,
+       show_chart_my?: false,
        show_reaction_chart?: false,
+       show_reaction_chart_my?: false,
        show_age_pie_all?: false,
        show_age_pie_mine?: false,
        task_accuracies: task_accuracies,
        task_reaction_times: task_reaction_times,
+       task_accuracies_my: task_accuracies_my,
+       task_reaction_times_my: task_reaction_times_my,
        age_distribution_all: age_distribution_all,
        age_distribution_mine: age_distribution_mine,
        current_user: current_user,
@@ -64,6 +83,16 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
   @impl true
   def handle_event("toggle_reaction_chart", _params, socket) do
     {:noreply, assign(socket, show_reaction_chart?: !socket.assigns.show_reaction_chart?)}
+  end
+
+  @impl true
+  def handle_event("toggle_chart_my", _params, socket) do
+    {:noreply, assign(socket, show_chart_my?: !socket.assigns.show_chart_my?)}
+  end
+
+  @impl true
+  def handle_event("toggle_reaction_chart_my", _params, socket) do
+    {:noreply, assign(socket, show_reaction_chart_my?: !socket.assigns.show_reaction_chart_my?)}
   end
 
   @impl true
@@ -90,17 +119,35 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
       education: if(education in ["", "Todos os níveis"], do: nil, else: education)
     }
 
-    filtered_accuracies = Exercices.average_accuracy_per_task(filters)
-    filtered_reactions = Exercices.average_reaction_time_per_task(filters)
+    filtered_accuracies = Exercices.average_accuracy_per_task(filters) |> Enum.sort_by(& &1.task_id)
+    filtered_reactions = Exercices.average_reaction_time_per_task(filters) |> Enum.sort_by(& &1.task_id)
+
+    filtered_accuracies_my =
+      if socket.assigns.current_user.type == "Terapeuta" do
+        Exercices.average_accuracy_per_task(Map.put(filters, :therapist_user_id, socket.assigns.current_user.id))
+        |> Enum.sort_by(& &1.task_id)
+      else
+        []
+      end
+
+    filtered_reactions_my =
+      if socket.assigns.current_user.type == "Terapeuta" do
+        Exercices.average_reaction_time_per_task(Map.put(filters, :therapist_user_id, socket.assigns.current_user.id))
+        |> Enum.sort_by(& &1.task_id)
+      else
+        []
+      end
 
     {:noreply,
-    assign(socket,
-      selected_age_range: age,
-      selected_gender: gender,
-      selected_education: education,
-      task_accuracies: filtered_accuracies,
-      task_reaction_times: filtered_reactions
-    )}
+     assign(socket,
+       selected_age_range: age,
+       selected_gender: gender,
+       selected_education: education,
+       task_accuracies: filtered_accuracies,
+       task_reaction_times: filtered_reactions,
+       task_accuracies_my: filtered_accuracies_my,
+       task_reaction_times_my: filtered_reactions_my
+     )}
   end
 
   @impl true
@@ -148,17 +195,28 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
           <% end %>
         </div>
 
-        <div class="mt-10 flex gap-4 justify-center">
-          <button phx-click="toggle_chart" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">
-            <%= if @show_chart?, do: "Esconder Gráfico de Precisão", else: "Mostrar Gráfico de Precisão" %>
-          </button>
-          <button phx-click="toggle_reaction_chart" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow">
-            <%= if @show_reaction_chart?, do: "Esconder Gráfico de Tempo", else: "Mostrar Gráfico de Tempo de Reação" %>
-          </button>
+        <div class="mt-8 flex justify-center">
+          <div class="bg-white shadow-md rounded-xl px-8 py-6 w-full max-w-lg flex flex-col items-center gap-5 border">
+            <h3 class="text-xl font-semibold mb-2 text-gray-800">Gráficos</h3>
+            <div class="flex flex-col gap-3 w-full">
+              <button phx-click="toggle_chart" class="w-full min-w-[230px] text-base bg-gray-900 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-lg shadow transition-all">
+                Precisão (Geral)
+              </button>
+              <button phx-click="toggle_reaction_chart" class="w-full min-w-[230px] text-base bg-gray-900 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-lg shadow transition-all">
+                Tempo de Reação (Geral)
+              </button>
+              <button phx-click="toggle_chart_my" class="w-full min-w-[230px] text-base bg-gray-900 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-lg shadow transition-all border-2 border-blue-500">
+                Precisão (Só meus pacientes)
+              </button>
+              <button phx-click="toggle_reaction_chart_my" class="w-full min-w-[230px] text-base bg-gray-900 hover:bg-blue-900 text-white font-semibold px-4 py-2 rounded-lg shadow transition-all border-2 border-purple-500">
+                Tempo de Reação (Só meus pacientes)
+              </button>
+            </div>
+          </div>
         </div>
 
         <%= if @show_chart? do %>
-          <.chart_modal title="Precisão Média por Tarefa" event="toggle_chart" hook="AccuracyStatChart"
+          <.chart_modal title="Precisão Média por Tarefa (Geral)" event="toggle_chart" hook="AccuracyStatChart"
             chart_data={@task_accuracies} field="avg_accuracy" label="Precisão Média (%)"
             age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
             selected_age_range={@selected_age_range} selected_gender={@selected_gender}
@@ -166,8 +224,24 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
         <% end %>
 
         <%= if @show_reaction_chart? do %>
-          <.chart_modal title="Tempo Médio de Reação por Tarefa" event="toggle_reaction_chart" hook="ReactionStatChart"
+          <.chart_modal title="Tempo Médio de Reação por Tarefa (Geral)" event="toggle_reaction_chart" hook="ReactionStatChart"
             chart_data={@task_reaction_times} field="avg_reaction_time" label="Tempo Médio (ms)"
+            age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
+            selected_age_range={@selected_age_range} selected_gender={@selected_gender}
+            selected_education={@selected_education} />
+        <% end %>
+
+        <%= if @show_chart_my? do %>
+          <.chart_modal title="Precisão Média por Tarefa (Só meus pacientes)" event="toggle_chart_my" hook="AccuracyStatChart"
+            chart_data={@task_accuracies_my} field="avg_accuracy" label="Precisão Média (%)"
+            age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
+            selected_age_range={@selected_age_range} selected_gender={@selected_gender}
+            selected_education={@selected_education} />
+        <% end %>
+
+        <%= if @show_reaction_chart_my? do %>
+          <.chart_modal title="Tempo Médio de Reação por Tarefa (Só meus pacientes)" event="toggle_reaction_chart_my" hook="ReactionStatChart"
+            chart_data={@task_reaction_times_my} field="avg_reaction_time" label="Tempo Médio (ms)"
             age_ranges={@age_ranges} genders={@genders} education_levels={@education_levels}
             selected_age_range={@selected_age_range} selected_gender={@selected_gender}
             selected_education={@selected_education} />
@@ -202,7 +276,6 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
     </div>
     """
   end
-
   attr :title, :string, required: true
   attr :event, :string, required: true
   attr :hook, :string, required: true
@@ -250,8 +323,6 @@ defmodule BeamWeb.Results.ResultsGeneralStatsLive do
             </select>
           </div>
         </form>
-
-        <p class="text-sm text-gray-600 italic mb-4">Gráfico gerado com dados agregados.</p>
 
         <canvas id={"chart-#{@hook}"} phx-hook={@hook} data-chart={Jason.encode!(@chart_data)} data-field={@field} data-label={@label} class="w-full h-96"></canvas>
 

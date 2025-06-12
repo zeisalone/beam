@@ -23,6 +23,7 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 import { Drag, Drop } from "./hooks/drag_drop"
 import { AccuracyChart, ReactionChart, PieChart, AccuracyStatChart, ReactionStatChart, TemporalChart } from "./hooks/chart_hooks"
+import AutoAdvanceInput from "./hooks/auto_advance_input"
 import Chart from 'chart.js/auto'
 window.Chart = Chart
 
@@ -34,6 +35,7 @@ let Hooks = {
   PieChart,
   AccuracyStatChart,
   ReactionStatChart,
+  AutoAdvanceInput,
   TemporalChart
 };
 
