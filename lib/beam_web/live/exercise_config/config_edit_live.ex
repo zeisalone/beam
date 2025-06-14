@@ -135,9 +135,6 @@ defmodule BeamWeb.ExerciseConfig.ConfigEditLive do
             />
           <% end %>
         <% end %>
-
-        <.input type="checkbox" field={@form[:public]} label="Edição usável por outros terapeutas?" />
-
         <:actions>
           <.button type="submit">Guardar Configuração</.button>
         </:actions>

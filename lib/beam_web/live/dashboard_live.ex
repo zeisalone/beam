@@ -7,6 +7,14 @@ defmodule BeamWeb.DashboardLive do
   def mount(_params, _session, socket) do
     current_user = socket.assigns.current_user
 
+    specialization =
+      if current_user.type == "Terapeuta" do
+        therapist = Accounts.get_therapist_by_user_id(current_user.id)
+        therapist && therapist.specialization || "Terapeuta"
+      else
+        nil
+      end
+
     all_pacientes =
       if current_user.type in ["Admin", "Terapeuta"], do: Accounts.list_pacientes(), else: []
 
@@ -25,7 +33,8 @@ defmodule BeamWeb.DashboardLive do
        only_mine: false,
        full_screen?: false,
        open_help: false,
-       current_user: current_user
+       current_user: current_user,
+       specialization: specialization
      )}
   end
 
@@ -74,7 +83,7 @@ defmodule BeamWeb.DashboardLive do
     ~H"""
     <div class="dashboard content-center space-y-6">
       <div class="text-2xl text-center font-bold text-gray-800">
-        Bem-vindo, {@current_user.type}!
+        Bem-vindo, <%= @specialization || @current_user.type %>!
       </div>
 
       <div class="flex content-center space-x-4 text-center justify-center">
@@ -142,7 +151,7 @@ defmodule BeamWeb.DashboardLive do
       <% end %>
 
       <div class="mt-8">
-        <div class="text-lg font-bold text-gray-800">Tabela de Terapeutas</div>
+        <div class="text-lg font-bold text-gray-800">Tabela de Profissionais</div>
 
         <div class="mt-3 mb-4 w-full">
           <form phx-change="search_terapeutas" class="relative w-full max-w-4xl">
@@ -151,7 +160,7 @@ defmodule BeamWeb.DashboardLive do
               <input
                 type="text"
                 name="search"
-                placeholder="Pesquisar terapeutas..."
+                placeholder="Pesquisar profissionais..."
                 class="w-full text-sm text-gray-700 placeholder-gray-400 bg-transparent focus:outline-none"
                 value={@search_terapeutas}
               />
@@ -172,7 +181,7 @@ defmodule BeamWeb.DashboardLive do
     </div>
      <.help_button open={@open_help}>
         <:help>
-          <p><strong>1.</strong> Podemos ver neste menu os todos os terapeutas e pacientes da aplicação.</p>
+          <p><strong>1.</strong> Podemos ver neste menu os todos os profissionais e pacientes da aplicação.</p>
         </:help>
         <:help>
           <p><strong>2.</strong> Ao carregar em <em>Novo Paciente</em> podes adicionar um novo paciente à aplicação.</p>

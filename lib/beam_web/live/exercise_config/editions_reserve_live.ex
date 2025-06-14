@@ -12,10 +12,18 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
 
     all_configs = Exercices.list_visible_exercise_configurations_with_task()
 
+    therapist_id =
+      if current_user.type == "Terapeuta" do
+        therapist = Accounts.get_therapist_by_user_id(current_user.id)
+        therapist && therapist.therapist_id
+      else
+        nil
+      end
+
     configs =
       case task_id do
-        nil -> all_configs
-        id -> Enum.filter(all_configs, &("#{&1.task_id}" == id))
+        nil -> Enum.filter(all_configs, &(&1.therapist_id == therapist_id))
+        id  -> Enum.filter(all_configs, &(&1.therapist_id == therapist_id and "#{&1.task_id}" == id))
       end
 
     pacientes =
