@@ -50,31 +50,33 @@ defmodule BeamWeb.Tasks.MathOperationLive do
       if connected?(socket), do: Process.send_after(self(), :show_equation, @initial_pause)
 
       {:ok,
-      assign(socket,
-        current_user: current_user,
-        user_id: current_user.id,
-        task_id: task_id,
-        questions: questions,
-        current_question_index: 0,
-        correct: 0,
-        wrong: 0,
-        omitted: 0,
-        total_reaction_time: 0,
-        live_action: live_action,
-        difficulty: difficulty,
-        total_questions: @total_questions,
-        a: first_a,
-        b: first_b,
-        operator: first_operator,
-        result: first_result,
-        options: first_options,
-        full_screen?: full_screen,
-        phase: :waiting,
-        start_time: nil,
-        equation_display_time: equation_display_time,
-        answer_time_limit: answer_time_limit,
-        timer_ref: nil
-      )}
+        assign(socket,
+          current_user: current_user,
+          user_id: current_user.id,
+          task_id: task_id,
+          questions: questions,
+          current_question_index: 0,
+          correct: 0,
+          wrong: 0,
+          omitted: 0,
+          total_reaction_time: 0,
+          live_action: live_action,
+          difficulty: difficulty,
+          total_questions: @total_questions,
+          a: first_a,
+          b: first_b,
+          operator: first_operator,
+          result: first_result,
+          options: first_options,
+          full_screen?: full_screen,
+          phase: :waiting,
+          start_time: nil,
+          equation_display_time: equation_display_time,
+          answer_time_limit: answer_time_limit,
+          timer_ref: nil,
+          paused: false,
+          pause_info: nil
+        )}
     else
       {:ok, push_navigate(socket, to: "/users/log_in")}
     end
@@ -103,46 +105,132 @@ defmodule BeamWeb.Tasks.MathOperationLive do
   defp cancel_if_ref(timer_ref) when is_reference(timer_ref), do: Process.cancel_timer(timer_ref)
   defp cancel_if_ref(_), do: :ok
 
+  defp time_left(:show_equation, assigns) do
+    time_used = System.system_time(:millisecond) - (assigns[:timer_start] || System.system_time(:millisecond))
+    max(assigns.equation_display_time - time_used, 1)
+  end
+
+  defp time_left(:show_options, assigns) do
+    time_used = System.system_time(:millisecond) - (assigns[:timer_start] || System.system_time(:millisecond))
+    max(assigns.answer_time_limit - time_used, 1)
+  end
+
   @impl true
   def handle_info(:show_equation, socket) do
-    if socket.assigns.phase == :waiting do
-      cancel_if_ref(socket.assigns.timer_ref)
-      ref = Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
-      {:noreply, assign(socket, phase: :show_equation, timer_ref: ref)}
-    else
+    if socket.assigns.paused do
       {:noreply, socket}
+    else
+      if socket.assigns.phase == :waiting do
+        cancel_if_ref(socket.assigns.timer_ref)
+        ref = Process.send_after(self(), :show_options, socket.assigns.equation_display_time)
+        {:noreply, assign(socket, phase: :show_equation, timer_ref: ref, timer_start: System.system_time(:millisecond))}
+      else
+        {:noreply, socket}
+      end
     end
   end
 
   @impl true
   def handle_info(:show_options, socket) do
-    if socket.assigns.phase == :show_equation do
-      cancel_if_ref(socket.assigns.timer_ref)
-      ref = Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      if socket.assigns.phase == :show_equation do
+        cancel_if_ref(socket.assigns.timer_ref)
+        ref = Process.send_after(self(), :timeout, socket.assigns.answer_time_limit)
+        {:noreply,
+          assign(socket,
+            phase: :show_options,
+            start_time: System.system_time(:millisecond),
+            timer_ref: ref,
+            timer_start: System.system_time(:millisecond)
+          )}
+      else
+        {:noreply, socket}
+      end
+    end
+  end
 
-      {:noreply,
-      assign(socket,
-        phase: :show_options,
-        start_time: System.system_time(:millisecond),
-        timer_ref: ref
-      )}
+  @impl true
+  def handle_info(:timeout, socket) do
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      if socket.assigns.phase == :show_options do
+        handle_omission(socket)
+      else
+        {:noreply, socket}
+      end
+    end
+  end
+
+ @impl true
+  def handle_event("toggle_pause", _params, socket) do
+    phase = socket.assigns.phase
+    if phase in [:show_equation, :show_options] do
+      paused = !socket.assigns.paused
+      if paused do
+        time_left =
+          case phase do
+            :show_equation -> time_left(:show_equation, socket.assigns)
+            :show_options -> time_left(:show_options, socket.assigns)
+          end
+
+        cancel_if_ref(socket.assigns.timer_ref)
+
+        {:noreply, assign(socket, paused: true, pause_info: %{phase: phase, time_left: time_left})}
+      else
+        %{phase: phase, time_left: time_left} = socket.assigns.pause_info || %{phase: nil, time_left: nil}
+        ref =
+          cond do
+            phase == :show_equation and is_integer(time_left) ->
+              Process.send_after(self(), :show_options, time_left)
+            phase == :show_options and is_integer(time_left) ->
+              Process.send_after(self(), :timeout, time_left)
+            true -> nil
+          end
+
+        {:noreply, assign(socket, paused: false, pause_info: nil, timer_ref: ref, timer_start: System.system_time(:millisecond))}
+      end
     else
       {:noreply, socket}
     end
   end
 
   @impl true
-  def handle_info(:timeout, socket) do
-    if socket.assigns.phase == :show_options do
-      handle_omission(socket)
-    else
+  def handle_event("submit_answer", %{"answer" => answer}, socket) do
+    if socket.assigns.paused do
       {:noreply, socket}
+    else
+      if socket.assigns.phase == :show_options do
+        cancel_if_ref(socket.assigns.timer_ref)
+
+        reaction_time = System.system_time(:millisecond) - socket.assigns.start_time
+        user_answer = String.to_integer(answer)
+
+        current_index = socket.assigns.current_question_index
+        total_questions = socket.assigns.total_questions
+
+        {_a, _b, _operator, correct_answer, _options} = Enum.at(socket.assigns.questions, current_index)
+
+        is_correct = MathOperation.validate_answer(user_answer, correct_answer)
+        correct = if is_correct, do: socket.assigns.correct + 1, else: socket.assigns.correct
+        wrong = if is_correct, do: socket.assigns.wrong, else: socket.assigns.wrong + 1
+        total_reaction_time = socket.assigns.total_reaction_time + reaction_time
+
+        if current_index + 1 >= total_questions do
+          save_results(correct, wrong, socket.assigns.omitted, total_reaction_time, socket)
+        else
+          next_question(socket, correct: correct, wrong: wrong, total_reaction_time: total_reaction_time)
+        end
+      else
+        {:noreply, socket}
+      end
     end
   end
 
   defp handle_omission(socket) do
     cancel_if_ref(socket.assigns.timer_ref)
-
     current_index = socket.assigns.current_question_index
     total_questions = socket.assigns.total_questions
     total_reaction_time = socket.assigns.total_reaction_time + socket.assigns.answer_time_limit
@@ -154,34 +242,6 @@ defmodule BeamWeb.Tasks.MathOperationLive do
     end
   end
 
-  @impl true
-  def handle_event("submit_answer", %{"answer" => answer}, socket) do
-  if socket.assigns.phase == :show_options do
-    cancel_if_ref(socket.assigns.timer_ref)
-
-    reaction_time = System.system_time(:millisecond) - socket.assigns.start_time
-    user_answer = String.to_integer(answer)
-
-    current_index = socket.assigns.current_question_index
-    total_questions = socket.assigns.total_questions
-
-    {_a, _b, _operator, correct_answer, _options} = Enum.at(socket.assigns.questions, current_index)
-
-    is_correct = MathOperation.validate_answer(user_answer, correct_answer)
-    correct = if is_correct, do: socket.assigns.correct + 1, else: socket.assigns.correct
-    wrong = if is_correct, do: socket.assigns.wrong, else: socket.assigns.wrong + 1
-    total_reaction_time = socket.assigns.total_reaction_time + reaction_time
-
-    if current_index + 1 >= total_questions do
-      save_results(correct, wrong, socket.assigns.omitted, total_reaction_time, socket)
-    else
-      next_question(socket, correct: correct, wrong: wrong, total_reaction_time: total_reaction_time)
-    end
-  else
-    {:noreply, socket}
-  end
-end
-
   defp next_question(socket, updates) do
     cancel_if_ref(socket.assigns.timer_ref)
 
@@ -192,18 +252,19 @@ end
     ref = Process.send_after(self(), :show_equation, @initial_pause)
 
     {:noreply,
-    assign(socket,
-      current_question_index: current_index,
-      a: new_a,
-      b: new_b,
-      operator: new_operator,
-      result: new_result,
-      options: new_options,
-      phase: :waiting,
-      start_time: nil,
-      timer_ref: ref
-    )
-    |> assign(updates)}
+      assign(socket,
+        current_question_index: current_index,
+        a: new_a,
+        b: new_b,
+        operator: new_operator,
+        result: new_result,
+        options: new_options,
+        phase: :waiting,
+        start_time: nil,
+        timer_ref: ref,
+        timer_start: System.system_time(:millisecond)
+      )
+      |> assign(updates)}
   end
 
   defp save_results(correct, wrong, omitted, total_reaction_time, socket) do
@@ -249,6 +310,31 @@ end
   def render(assigns) do
     ~H"""
     <div class="relative min-h-screen flex flex-col justify-center items-center pt-10 pb-24">
+      <%= if @current_user.type == "Terapeuta" do %>
+        <button
+          type="button"
+          phx-click="toggle_pause"
+          class={"absolute right-6 top-6 z-30 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+                (if @phase in [:show_equation, :show_options], do: "", else: "opacity-40 pointer-events-none")}
+          title={if @paused, do: "Retomar", else: "Pausar"}
+          disabled={not (@phase in [:show_equation, :show_options])}
+        >
+          <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
+        </button>
+      <% end %>
+
+      <%= if @paused do %>
+        <div class="fixed inset-0 z-40 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+          <button
+            phx-click="toggle_pause"
+            class="flex flex-col items-center group focus:outline-none"
+          >
+            <.icon name="hero-play-circle" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" />
+            <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+          </button>
+          <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+        </div>
+      <% end %>
       <h1 class="text-3xl font-bold mb-6">Resolve a Operação Matemática</h1>
 
       <%= if @phase == :show_equation do %>
@@ -267,6 +353,7 @@ end
               type="button"
               phx-click="submit_answer"
               phx-value-answer={option}
+              disabled={@paused}
             >
               <%= option %>
             </button>

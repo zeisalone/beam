@@ -5,7 +5,7 @@ defmodule BeamWeb.UserSessionController do
   alias BeamWeb.UserAuth
 
   def create(conn, %{"_action" => "registered"} = params) do
-    create(conn, params, "Account created successfully!")
+    create(conn, params, "Conta criada com sucesso!")
   end
 
   def create(conn, %{"_action" => "password_updated"} = params) do
@@ -15,7 +15,7 @@ defmodule BeamWeb.UserSessionController do
   end
 
   def create(conn, params) do
-    create(conn, params, "Welcome back!")
+    create(conn, params, "Bem-vindo de volta!")
   end
 
   defp create(conn, %{"user" => user_params}, info) do

@@ -28,10 +28,6 @@ defmodule Beam.Exercices do
     |> Repo.update()
   end
 
-  def delete_task(%Task{} = task) do
-    Repo.delete(task)
-  end
-
   def change_task(%Task{} = task, attrs \\ %{}) do
     Task.changeset(task, attrs)
   end

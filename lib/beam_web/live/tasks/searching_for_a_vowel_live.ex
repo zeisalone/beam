@@ -71,7 +71,11 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
          phase_duration: phase_duration,
          cycle_duration: cycle_duration,
          total_phases: total_phases,
-         config: config
+         config: config,
+         paused: false,
+         pause_info: nil,
+         timer_ref: nil,
+         timer_start: nil
        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
@@ -94,10 +98,17 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
     end
   end
 
-
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(value), do: value
+
+  defp cancel_if_ref(timer_ref) when is_reference(timer_ref), do: Process.cancel_timer(timer_ref)
+  defp cancel_if_ref(_), do: :ok
+
+  defp time_left(:in_phase, assigns) do
+    time_used = System.monotonic_time(:millisecond) - (assigns[:timer_start] || System.monotonic_time(:millisecond))
+    max(assigns.phase_duration - time_used, 1)
+  end
 
   def handle_info(:prepare_task, socket) do
     target = Map.put(SearchingForAVowel.generate_target(), :position, "up")
@@ -118,23 +129,30 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
         SearchingForAVowel.generate_phase(socket.assigns.target, socket.assigns.difficulty)
       end
 
-    Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
+    cancel_if_ref(socket.assigns.timer_ref)
+    ref = Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
 
     {:noreply,
      assign(socket,
        phase: phase,
        current_phase_start: System.monotonic_time(),
        in_cycle: false,
-       show_intro: false
+       show_intro: false,
+       paused: false,
+       pause_info: nil,
+       timer_ref: ref,
+       timer_start: System.monotonic_time(:millisecond)
      )}
   end
 
   def handle_info(:start_cycle, socket) do
-    Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
-    {:noreply, assign(socket, phase: [], in_cycle: true)}
+    cancel_if_ref(socket.assigns.timer_ref)
+    ref = Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
+    {:noreply, assign(socket, phase: [], in_cycle: true, timer_ref: ref, timer_start: System.monotonic_time(:millisecond))}
   end
 
   def handle_info(:next_phase, socket) do
+    cancel_if_ref(socket.assigns.timer_ref)
     was_omitted = socket.assigns.user_response == nil
     reaction_time = if was_omitted, do: socket.assigns.phase_duration, else: 0
 
@@ -143,6 +161,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
       {:noreply, assign(socket, calculating_results: true)}
     else
       Process.send_after(self(), :start_phase, 0)
+      new_results = [%{result: :omitted, reaction_time: reaction_time} | socket.assigns.results]
 
       {:noreply,
        assign(socket,
@@ -150,7 +169,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
          total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
          user_response: nil,
          current_phase_index: socket.assigns.current_phase_index + 1,
-         results: [%{result: :omitted, reaction_time: reaction_time} | socket.assigns.results]
+         results: new_results
        )}
     end
   end
@@ -167,8 +186,32 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
   end
 
+  def handle_event("toggle_pause", _params, socket) do
+    can_pause =
+      socket.assigns.current_user.type == "Terapeuta" and
+        not socket.assigns.in_cycle and
+        not socket.assigns.preparing_task and
+        not socket.assigns.show_intro and
+        not socket.assigns.calculating_results
+
+    if can_pause do
+      paused = !socket.assigns.paused
+      if paused do
+        time_left = time_left(:in_phase, socket.assigns)
+        cancel_if_ref(socket.assigns.timer_ref)
+        {:noreply, assign(socket, paused: true, pause_info: %{time_left: time_left})}
+      else
+        %{time_left: time_left} = socket.assigns.pause_info || %{time_left: nil}
+        ref = Process.send_after(self(), :start_cycle, time_left)
+        {:noreply, assign(socket, paused: false, pause_info: nil, timer_ref: ref, timer_start: System.monotonic_time(:millisecond))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_event("vowel_click", %{"vowel" => vowel, "color" => color}, socket) do
-    if socket.assigns.in_cycle, do: {:noreply, socket}, else: register_click(vowel, color, socket)
+    if socket.assigns.in_cycle or socket.assigns.paused, do: {:noreply, socket}, else: register_click(vowel, color, socket)
   end
 
   defp register_click(vowel, color, socket) do
@@ -185,6 +228,9 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
         :wrong -> %{wrong: socket.assigns.wrong + 1}
       end
 
+    cancel_if_ref(socket.assigns.timer_ref)
+    ref = Process.send_after(self(), :start_cycle, 0)
+
     {:noreply,
      assign(socket,
        user_response: clicked,
@@ -193,7 +239,9 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
        wrong: updated[:wrong] || socket.assigns.wrong,
        phase: [],
        in_cycle: true,
-       results: [%{result: result, reaction_time: reaction_time} | socket.assigns.results]
+       results: [%{result: result, reaction_time: reaction_time} | socket.assigns.results],
+       timer_ref: ref,
+       timer_start: System.monotonic_time(:millisecond)
      )}
   end
 
@@ -220,12 +268,24 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
     end
   end
 
-
   def render(assigns) do
     ~H"""
     <div class="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white">
+      <%= if @current_user.type == "Terapeuta" do %>
+        <button
+          type="button"
+          phx-click="toggle_pause"
+          class={"absolute right-6 top-6 z-50 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+                (if not (@in_cycle or @preparing_task or @show_intro or @calculating_results), do: "", else: "opacity-40 pointer-events-none")}
+          title={if @paused, do: "Retomar", else: "Pausar"}
+          disabled={@in_cycle or @preparing_task or @show_intro or @calculating_results}
+        >
+          <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
+        </button>
+      <% end %>
+
       <%= unless @preparing_task or @show_intro do %>
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[40%] z-50">
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[40%] z-40">
           <div class="w-full h-6 bg-gray-300 rounded-full overflow-hidden shadow-inner">
             <div
               class="h-full bg-green-500 transition-all duration-300"
@@ -272,6 +332,7 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
                   phx-value-vowel={vowel}
                   phx-value-color={color}
                   class={"absolute #{position_to_class(position)} w-[7vw] h-[7vw] flex items-center justify-center bg-white border-4 border-gray-600 rounded-full #{tailwind_color(color)} text-3xl font-bold"}
+                  disabled={@paused}
                 >
                   <%= vowel %>
                 </button>
@@ -280,10 +341,22 @@ defmodule BeamWeb.Tasks.SearchingForAVowelLive do
           </div>
         <% end %>
       <% end %>
+
+      <%= if @paused do %>
+        <div class="fixed inset-0 z-50 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+          <button
+            phx-click="toggle_pause"
+            class="flex flex-col items-center group focus:outline-none"
+          >
+            <.icon name="hero-play-circle" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" />
+            <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+          </button>
+          <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+        </div>
+      <% end %>
     </div>
     """
   end
-
 
   defp position_to_class("up"), do: "-top-[50px] left-1/2 transform -translate-x-1/2"
   defp position_to_class("down"), do: "-bottom-[50px] left-1/2 transform -translate-x-1/2"

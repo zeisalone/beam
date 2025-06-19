@@ -78,13 +78,4 @@ defmodule BeamWeb.TaskController do
         render(conn, :edit, task: task, changeset: changeset)
     end
   end
-
-  def delete(conn, %{"id" => id}) do
-    task = Exercices.get_task!(id)
-    {:ok, _task} = Exercices.delete_task(task)
-
-    conn
-    |> put_flash(:info, "Task deleted successfully.")
-    |> redirect(to: ~p"/tasks")
-  end
 end

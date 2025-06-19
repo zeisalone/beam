@@ -729,4 +729,31 @@ slot :help, required: true
     </div>
     """
   end
+
+  @doc """
+  Renders a floating pause button.
+  - show: boolean, se está em pausa ou não
+  - on_toggle: evento JS ou phx-click, obrigatório
+  """
+  attr :paused, :boolean, default: false
+  attr :on_toggle, :any, required: true
+
+  def pause_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click={@on_toggle}
+      class={[
+        "fixed top-6 right-6 z-40 flex items-center gap-2 rounded-full px-5 py-3 shadow-lg text-lg font-bold transition focus:outline-none",
+        @paused && "bg-yellow-500 text-black animate-pulse",
+        !@paused && "bg-zinc-900 text-white hover:bg-zinc-800"
+      ]}
+      aria-label={@paused && "Retomar" || "Pausar"}
+    >
+      <.icon name={@paused && "hero-pause-circle" || "hero-pause"} class="w-6 h-6" />
+      <span :if={@paused}>PAUSADO</span>
+      <span :if={!@paused}>Pausar</span>
+    </button>
+    """
+  end
 end

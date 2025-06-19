@@ -4,7 +4,6 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
   alias Beam.Exercices.Result
   alias Beam.Repo
 
-
   @slide_duration 400
 
   def mount(_params, session, socket) do
@@ -47,7 +46,10 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
        total_reaction_time: 0,
        current_start_time: nil,
        game_finished: false,
-       config: config
+       config: config,
+       paused: false,
+       pause_info: nil,
+       timers: %{}
      )}
   end
 
@@ -61,7 +63,7 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
       OrderAnimals.generate_target_sequence(level_or_config)
       |> OrderAnimals.generate_phase()
 
-    Process.send_after(self(), {:show_animal, 0}, 1000)
+    slide_timer = Process.send_after(self(), {:show_animal, 0}, 1000)
 
     {:noreply,
      assign(socket,
@@ -72,36 +74,47 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
        animating_out?: false,
        shuffled_options: opts,
        user_sequence: List.duplicate(nil, length(seq)),
-       dragging: nil
+       dragging: nil,
+       timers: %{:slide => slide_timer}
      )}
   end
 
   def handle_info({:show_animal, idx}, socket) do
-    seq = socket.assigns.target_sequence
-
-    if idx < length(seq) do
-      animal = Enum.at(seq, idx)
-      animal_time = socket.assigns.config.animal_total_time
-      slide_out_delay = animal_time - @slide_duration
-
-      socket = assign(socket, current_animal: animal, animating_out?: false)
-
-      Process.send_after(self(), :animate_out, slide_out_delay)
-      Process.send_after(self(), {:show_animal, idx + 1}, animal_time)
-
+    if socket.assigns.paused do
       {:noreply, socket}
     else
-      Process.send_after(self(), :hide_sequence, socket.assigns.config.animal_total_time)
-      {:noreply, assign(socket, current_animal: nil, animating_out?: false)}
+      seq = socket.assigns.target_sequence
+      if idx < length(seq) do
+        animal = Enum.at(seq, idx)
+        animal_time = socket.assigns.config.animal_total_time
+        slide_out_delay = animal_time - @slide_duration
+
+        out_timer = Process.send_after(self(), :animate_out, slide_out_delay)
+        next_timer = Process.send_after(self(), {:show_animal, idx + 1}, animal_time)
+
+        socket = assign(socket, current_animal: animal, animating_out?: false)
+        {:noreply, assign(socket, timers: %{out: out_timer, next: next_timer})}
+      else
+        hide_timer = Process.send_after(self(), :hide_sequence, socket.assigns.config.animal_total_time)
+        {:noreply, assign(socket, current_animal: nil, animating_out?: false, timers: %{hide: hide_timer})}
+      end
     end
   end
 
   def handle_info(:animate_out, socket) do
-    {:noreply, assign(socket, animating_out?: true)}
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, animating_out?: true)}
+    end
   end
 
   def handle_info(:hide_sequence, socket) do
-    {:noreply, assign(socket, show_sequence: false, current_start_time: System.monotonic_time())}
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      {:noreply, assign(socket, show_sequence: false, current_start_time: System.monotonic_time())}
+    end
   end
 
   def handle_info(:save_results, socket) do
@@ -175,9 +188,46 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
       send(self(), :save_results)
       {:noreply, assign(socket, updated |> Map.put(:game_finished, true))}
     else
-      Process.send_after(self(), :start_round, 1000)
-      {:noreply, assign(socket, updated)}
+      next_timer = Process.send_after(self(), :start_round, 1000)
+      {:noreply, assign(socket, updated |> Map.put(:timers, %{next: next_timer}))}
     end
+  end
+
+  def handle_event("toggle_pause", _params, socket) do
+    paused = !socket.assigns.paused
+
+    if paused do
+      Enum.each(Map.values(socket.assigns.timers), fn ref ->
+        if is_reference(ref), do: Process.cancel_timer(ref)
+      end)
+
+      {:noreply, assign(socket, paused: true, pause_info: nil, timers: %{})}
+    else
+      timers =
+        cond do
+          socket.assigns.preparing ->
+            %{slide: Process.send_after(self(), :start_round, 1000)}
+          socket.assigns.show_sequence && socket.assigns.current_animal && !socket.assigns.animating_out? ->
+            animal_time = socket.assigns.config.animal_total_time
+            slide_out_delay = animal_time - @slide_duration
+            %{
+              out: Process.send_after(self(), :animate_out, slide_out_delay),
+              next: Process.send_after(self(), {:show_animal, find_current_animal_idx(socket)}, animal_time)
+            }
+          socket.assigns.show_sequence && is_nil(socket.assigns.current_animal) ->
+            %{hide: Process.send_after(self(), :hide_sequence, socket.assigns.config.animal_total_time)}
+          socket.assigns.game_finished ->
+            %{}
+          true ->
+            %{}
+        end
+
+      {:noreply, assign(socket, paused: false, timers: timers)}
+    end
+  end
+
+  defp find_current_animal_idx(socket) do
+    Enum.find_index(socket.assigns.target_sequence, &(&1 == socket.assigns.current_animal)) || 0
   end
 
   defp save_final_result(socket) do
@@ -230,6 +280,40 @@ defmodule BeamWeb.Tasks.OrderAnimalsLive do
   def render(assigns) do
     ~H"""
     <div class="flex items-center justify-center h-screen bg-white">
+      <%= if @current_user && @current_user.type == "Terapeuta" && !@game_finished do %>
+        <button
+          type="button"
+          phx-click="toggle_pause"
+          class={"absolute top-12 right-6 z-30 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+                (if @paused, do: "ring-2 ring-yellow-200", else: "")}
+          title={if @paused, do: "Retomar", else: "Pausar"}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <%= if @paused do %>
+              <polygon points="10,8 16,12 10,16" fill="currentColor"/>
+            <% else %>
+              <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+            <% end %>
+          </svg>
+        </button>
+      <% end %>
+
+      <%= if @paused do %>
+        <div class="fixed inset-0 z-40 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+          <button
+            phx-click="toggle_pause"
+            class="flex flex-col items-center group focus:outline-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+              <polygon points="10,8 16,12 10,16" fill="currentColor"/>
+            </svg>
+            <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+          </button>
+          <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+        </div>
+      <% end %>
+
       <%= if @game_finished do %>
         <p class="text-xl font-bold text-gray-800">A calcular resultados...</p>
       <% else %>

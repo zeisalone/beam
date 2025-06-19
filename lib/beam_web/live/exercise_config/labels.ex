@@ -34,7 +34,8 @@ defmodule BeamWeb.ExerciseConfig.Labels do
     time_limit_ms: "Tempo Limite (ms)",
     animal_total_time: "Tempo por Animal",
     max_sequence: "Tamanho Máximo da Sequência",
-    min_sequence: "Tamanho Mínimo da Sequência"
+    min_sequence: "Tamanho Mínimo da Sequência",
+    num_distractors_list: "Número de Distratores"
   }
 
   @doc """

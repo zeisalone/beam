@@ -31,6 +31,7 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
 
     {:ok,
      assign(socket,
+       current_user: current_user,
        user_id: current_user.id,
        task_id: task_id,
        difficulty: difficulty,
@@ -50,14 +51,23 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
        full_screen?: full_screen,
        last_feedback: nil,
        finished: false,
-       config: config
+       config: config,
+       paused: false,
+       pause_info: nil,
+       tick_ref: nil
      )}
   end
 
   def handle_info(:tick, socket) do
-    new_time = max(socket.assigns.time_left - 1000, 0)
-    if new_time == 0, do: send(self(), :timeout), else: Process.send_after(self(), :tick, 1000)
-    {:noreply, assign(socket, time_left: new_time)}
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      new_time = max(socket.assigns.time_left - 1000, 0)
+      # Só reenvia timer se não chegou a 0
+      tick_ref = if new_time > 0, do: Process.send_after(self(), :tick, 1000), else: nil
+      if new_time == 0, do: send(self(), :timeout)
+      {:noreply, assign(socket, time_left: new_time, tick_ref: tick_ref)}
+    end
   end
 
   def handle_info(:start_intro, socket) do
@@ -73,7 +83,14 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
 
     round_data = FollowTheFigure.generate_round(socket.assigns.round, level_or_config)
 
-    if socket.assigns.round == 1, do: Process.send_after(self(), :tick, 1000)
+    # Só inicia o timer no primeiro round (não recomeça a cada round)
+    socket =
+      if socket.assigns.round == 1 and not socket.assigns.paused do
+        tick_ref = Process.send_after(self(), :tick, 1000)
+        assign(socket, tick_ref: tick_ref)
+      else
+        socket
+      end
 
     {:noreply,
      assign(socket,
@@ -92,11 +109,29 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
   end
 
   def handle_event("select", %{"shape" => shape, "color" => color}, socket) do
-    reaction_time = System.monotonic_time() - socket.assigns.round_start |> System.convert_time_unit(:native, :millisecond)
-    result = FollowTheFigure.validate_selection(%{shape: shape, color: color}, socket.assigns.target)
+    if socket.assigns.paused or socket.assigns.clicked do
+      {:noreply, socket}
+    else
+      reaction_time = System.monotonic_time() - socket.assigns.round_start |> System.convert_time_unit(:native, :millisecond)
+      result = FollowTheFigure.validate_selection(%{shape: shape, color: color}, socket.assigns.target)
 
-    socket = assign(socket, clicked: true, last_feedback: result)
-    advance_round(result, reaction_time, socket)
+      socket = assign(socket, clicked: true, last_feedback: result)
+      advance_round(result, reaction_time, socket)
+    end
+  end
+
+  def handle_event("toggle_pause", _params, socket) do
+    paused = !socket.assigns.paused
+
+    if paused do
+      # Cancela timer do tick se existir
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
+      {:noreply, assign(socket, paused: true, pause_info: %{time_left: socket.assigns.time_left}, tick_ref: nil)}
+    else
+      # Só volta a contar se não terminou
+      tick_ref = if socket.assigns.time_left > 0, do: Process.send_after(self(), :tick, 1000), else: nil
+      {:noreply, assign(socket, paused: false, pause_info: nil, tick_ref: tick_ref)}
+    end
   end
 
   defp advance_round(result, reaction_time, socket) do
@@ -112,6 +147,7 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
     round = socket.assigns.round + 1
 
     if round > total_rounds do
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
       save_results(
         updates[:correct] || socket.assigns.correct,
         updates[:wrong] || socket.assigns.wrong,
@@ -215,8 +251,43 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
         <% end %>
       </div>
 
-      <div class="w-60 bg-white border-l border-gray-300 p-4 flex flex-col justify-start items-center z-50 mb-2">
-        <p class="text-sm text-gray-600 font-medium mb-1">Alvo:</p>
+      <div class="w-60 bg-white border-l border-gray-300 p-4 flex flex-col justify-start items-center z-50 mb-2 relative">
+        <%= if @current_user && @current_user.type == "Terapeuta" do %>
+          <button
+            type="button"
+            phx-click="toggle_pause"
+            class={"absolute left-3 top-3 z-40 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition shadow " <>
+                    (if @paused, do: "ring-2 ring-yellow-200", else: "")}
+            title={if @paused, do: "Retomar", else: "Pausar"}
+            style="outline:none;"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <%= if @paused do %>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              <% else %>
+                <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+              <% end %>
+            </svg>
+          </button>
+        <% end %>
+
+        <%= if @paused do %>
+          <div class="absolute inset-0 z-50 bg-black bg-opacity-50 flex flex-col justify-center items-center rounded-xl">
+            <button
+              phx-click="toggle_pause"
+              class="flex flex-col items-center group focus:outline-none"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-20 h-20 mb-2 text-yellow-400 group-hover:text-yellow-300 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+                <polygon points="10,8 16,12 10,16" fill="currentColor"/>
+              </svg>
+              <span class="text-2xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+            </button>
+            <span class="mt-2 text-white text-base">Clique no botão acima para continuar</span>
+          </div>
+        <% end %>
+
+        <p class="text-sm text-gray-600 font-medium mb-1 mt-3">Alvo:</p>
         <div class="w-24 h-24 border-4 border-yellow-400 rounded-xl mb-4 flex items-center justify-center">
           <div class="w-16 h-16">
             <%= if @target do %>
@@ -279,7 +350,6 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
       {:error, _} -> "<!-- SVG not found -->"
     end
   end
-
 
   defp tailwind_color("red"), do: "text-red-600"
   defp tailwind_color("blue"), do: "text-blue-500"

@@ -64,7 +64,11 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
           loading: true,
           full_screen?: full_screen,
           timeout_ref: nil,
-          response_timeout: response_timeout
+          response_timeout: response_timeout,
+          paused: false,
+          pause_info: nil,
+          timer_start: nil,
+          time_left: nil
         )
 
       if connected?(socket), do: Process.send_after(self(), :hide_loading, 1000)
@@ -75,6 +79,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
   end
 
   def handle_event("start_task", _params, socket) do
+    now = System.monotonic_time(:millisecond)
     timeout_ref = Process.send_after(self(), :timeout, socket.assigns.response_timeout)
 
     {:noreply,
@@ -82,8 +87,36 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
        game_started: true,
        show_code: false,
        start_time: System.monotonic_time(),
-       timeout_ref: timeout_ref
+       timeout_ref: timeout_ref,
+       timer_start: now,
+       time_left: socket.assigns.response_timeout
      )}
+  end
+
+  def handle_event("toggle_pause", _params, socket) do
+    can_pause =
+      socket.assigns.current_user.type == "Terapeuta" and
+      socket.assigns.game_started and
+      not socket.assigns.show_code and
+      not socket.assigns.game_finished
+
+    if can_pause do
+      paused = !socket.assigns.paused
+      if paused do
+        now = System.monotonic_time(:millisecond)
+        timer_start = socket.assigns.timer_start
+        time_passed = if timer_start, do: now - timer_start, else: 0
+        time_left = max(socket.assigns.response_timeout - time_passed, 1)
+        if is_reference(socket.assigns.timeout_ref), do: Process.cancel_timer(socket.assigns.timeout_ref)
+        {:noreply, assign(socket, paused: true, pause_info: %{time_left: time_left})}
+      else
+        %{time_left: time_left} = socket.assigns.pause_info || %{time_left: nil}
+        ref = Process.send_after(self(), :timeout, time_left)
+        {:noreply, assign(socket, paused: false, pause_info: nil, timeout_ref: ref, timer_start: System.monotonic_time(:millisecond))}
+      end
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_event("update_input", %{"input" => input_map}, socket) do
@@ -109,7 +142,13 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{socket.assigns.task_id}")}
   end
 
-  def handle_info(:timeout, socket), do: process_result(socket)
+  def handle_info(:timeout, socket) do
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      process_result(socket)
+    end
+  end
 
   defp process_result(socket) do
     {correct, wrong, omitted} =
@@ -252,8 +291,31 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
                 Iniciar
               </button>
             </div>
-
           <% else %>
+            <%= if @current_user.type == "Terapeuta" do %>
+              <button
+                type="button"
+                phx-click="toggle_pause"
+                class="absolute right-6 top-6 z-50 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition"
+                title={if @paused, do: "Retomar", else: "Pausar"}
+              >
+                <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
+              </button>
+            <% end %>
+
+            <%= if @paused do %>
+              <div class="fixed inset-0 z-50 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+                <button
+                  phx-click="toggle_pause"
+                  class="flex flex-col items-center group focus:outline-none"
+                >
+                  <.icon name="hero-play-circle" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" />
+                  <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+                </button>
+                <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+              </div>
+            <% end %>
+
             <form phx-submit="submit" phx-change="update_input" class="mt-6">
               <div class={grid_class(length(@grid))}>
                 <%= for {%{shape: shape, color: color}, index} <- Enum.with_index(@grid) do %>
@@ -266,13 +328,13 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
                       maxlength="1"
                       pattern="[0-9]"
                       value={Map.get(@user_input, index, "")}
+                      disabled={@paused}
                     />
                   </div>
                 <% end %>
               </div>
-
               <div class="text-center mt-4">
-                <button type="submit" class="px-5 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm">
+                <button type="submit" class="px-5 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition text-sm" disabled={@paused}>
                   Enviar
                 </button>
               </div>

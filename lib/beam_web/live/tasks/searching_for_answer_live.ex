@@ -72,13 +72,16 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
         phase_duration: phase_duration,
         cycle_duration: cycle_duration,
         total_phases: total_phases,
-        config: config
+        config: config,
+        paused: false,
+        pause_info: nil,
+        timer_ref: nil,
+        timer_start: nil
       )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
     end
   end
-
 
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
@@ -100,6 +103,15 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     end
   end
 
+  defp cancel_if_ref(timer_ref) when is_reference(timer_ref), do: Process.cancel_timer(timer_ref)
+  defp cancel_if_ref(_), do: :ok
+
+  defp time_left(:in_phase, assigns) do
+    time_used = System.monotonic_time(:millisecond) - (assigns[:timer_start] || System.monotonic_time(:millisecond))
+    max(assigns.phase_duration - time_used, 1)
+  end
+
+
   def handle_info(:prepare_task, socket) do
     target = Map.put(SearchingForAnAnswer.generate_target(), :position, "up")
     Process.send_after(self(), :start_intro, 1000)
@@ -118,23 +130,30 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     else
       SearchingForAnAnswer.generate_phase(socket.assigns.target, socket.assigns.difficulty)
     end
-    Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
+    cancel_if_ref(socket.assigns.timer_ref)
+    ref = Process.send_after(self(), :start_cycle, socket.assigns.phase_duration)
 
     {:noreply,
      assign(socket,
        phase: phase,
        current_phase_start: System.monotonic_time(),
        in_cycle: false,
-       show_intro: false
+       show_intro: false,
+       paused: false,
+       pause_info: nil,
+       timer_ref: ref,
+       timer_start: System.monotonic_time(:millisecond)
      )}
   end
 
   def handle_info(:start_cycle, socket) do
-    Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
-    {:noreply, assign(socket, phase: [], in_cycle: true)}
+    cancel_if_ref(socket.assigns.timer_ref)
+    ref = Process.send_after(self(), :next_phase, socket.assigns.cycle_duration)
+    {:noreply, assign(socket, phase: [], in_cycle: true, timer_ref: ref, timer_start: System.monotonic_time(:millisecond))}
   end
 
   def handle_info(:next_phase, socket) do
+    cancel_if_ref(socket.assigns.timer_ref)
     was_omitted = socket.assigns.user_response == nil
     reaction_time = if was_omitted, do: socket.assigns.phase_duration, else: 0
 
@@ -174,8 +193,34 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
   end
 
+
+  def handle_event("toggle_pause", _params, socket) do
+    can_pause =
+      socket.assigns.current_user.type == "Terapeuta" and
+        not socket.assigns.in_cycle and
+        not socket.assigns.preparing_task and
+        not socket.assigns.show_intro and
+        not socket.assigns.calculating_results
+
+    if can_pause do
+      paused = !socket.assigns.paused
+      if paused do
+        time_left = time_left(:in_phase, socket.assigns)
+        cancel_if_ref(socket.assigns.timer_ref)
+        {:noreply, assign(socket, paused: true, pause_info: %{time_left: time_left})}
+      else
+        %{time_left: time_left} = socket.assigns.pause_info || %{time_left: nil}
+        ref = Process.send_after(self(), :start_cycle, time_left)
+        {:noreply, assign(socket, paused: false, pause_info: nil, timer_ref: ref, timer_start: System.monotonic_time(:millisecond))}
+      end
+    else
+      {:noreply, socket}
+    end
+  end
+
+
   def handle_event("key_pressed", %{"key" => key}, socket) do
-    if socket.assigns.in_cycle do
+    if socket.assigns.in_cycle or socket.assigns.paused do
       {:noreply, socket}
     else
       key_to_position = %{
@@ -210,6 +255,10 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
 
         new_results = [%{result: result, reaction_time: reaction_time} | socket.assigns.results]
 
+        cancel_if_ref(socket.assigns.timer_ref)
+
+        ref = Process.send_after(self(), :start_cycle, 0)
+
         {:noreply,
          assign(socket,
            user_response: user_position,
@@ -219,7 +268,9 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
            wrong: update_counts[:wrong] || socket.assigns.wrong,
            phase: [],
            in_cycle: true,
-           results: new_results
+           results: new_results,
+           timer_ref: ref,
+           timer_start: System.monotonic_time(:millisecond)
          )}
       else
         {:noreply, socket}
@@ -258,8 +309,21 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
       phx-window-keydown="key_pressed"
       phx-capture-keydown
     >
+      <%= if @current_user.type == "Terapeuta" do %>
+        <button
+          type="button"
+          phx-click="toggle_pause"
+          class={"absolute right-6 top-6 z-50 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+                (if not (@in_cycle or @preparing_task or @show_intro or @calculating_results), do: "", else: "opacity-40 pointer-events-none")}
+          title={if @paused, do: "Retomar", else: "Pausar"}
+          disabled={@in_cycle or @preparing_task or @show_intro or @calculating_results}
+        >
+          <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
+        </button>
+      <% end %>
+
       <%= unless @preparing_task or @show_intro do %>
-        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[40%] z-50">
+        <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[40%] z-40">
           <div class="w-full h-6 bg-gray-300 rounded-full overflow-hidden shadow-inner">
             <div
               class="h-full bg-green-500 transition-all duration-300"
@@ -311,10 +375,22 @@ defmodule BeamWeb.Tasks.SearchingForAnAnswerLive do
           </div>
         <% end %>
       <% end %>
+
+      <%= if @paused do %>
+        <div class="fixed inset-0 z-50 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+          <button
+            phx-click="toggle_pause"
+            class="flex flex-col items-center group focus:outline-none"
+          >
+            <.icon name="hero-play-circle" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" />
+            <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+          </button>
+          <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+        </div>
+      <% end %>
     </div>
     """
   end
-
 
   defp position_to_class("up"), do: "-top-[50px] left-1/2 transform -translate-x-1/2"
   defp position_to_class("down"), do: "-bottom-[50px] left-1/2 transform -translate-x-1/2"

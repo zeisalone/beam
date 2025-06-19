@@ -48,7 +48,10 @@ defmodule BeamWeb.Tasks.SimonLive do
        start_time: nil,
        shake_error?: false,
        time_remaining: max_duration,
-       timer_ref: nil
+       timer_ref: nil,
+       timeout_ref: nil,
+       paused: false,
+       pause_info: nil
      )}
   end
 
@@ -61,8 +64,8 @@ defmodule BeamWeb.Tasks.SimonLive do
     config = socket.assigns.difficulty_or_config
     colors = Simon.generate_colors(config)
     sequence = [Enum.random(0..(length(colors) - 1))]
-    {:ok, timer} = :timer.send_interval(1000, self(), :tick)
-    Process.send_after(self(), :timeout, Simon.time_limit_ms(config))
+    {:ok, timer_ref} = :timer.send_interval(1000, self(), :tick)
+    timeout_ref = Process.send_after(self(), :timeout, Simon.time_limit_ms(config))
 
     {:noreply,
      assign(socket,
@@ -71,7 +74,9 @@ defmodule BeamWeb.Tasks.SimonLive do
        user_input: [],
        preparing_task: false,
        locked_buttons: true,
-       timer_ref: timer
+       timer_ref: timer_ref,
+       timeout_ref: timeout_ref,
+       time_remaining: Simon.time_limit_ms(config)
      )
      |> animate_sequence()}
   end
@@ -105,18 +110,22 @@ defmodule BeamWeb.Tasks.SimonLive do
   end
 
   def handle_info(:tick, socket) do
-    new_time = socket.assigns.time_remaining - 1000
-
-    if new_time <= 0 do
-      send(self(), :timeout)
+    if socket.assigns.paused do
       {:noreply, socket}
     else
-      {:noreply, assign(socket, time_remaining: new_time)}
+      new_time = socket.assigns.time_remaining - 1000
+      if new_time <= 0 do
+        send(self(), :timeout)
+        {:noreply, assign(socket, time_remaining: 0)}
+      else
+        {:noreply, assign(socket, time_remaining: new_time)}
+      end
     end
   end
 
   def handle_info(:timeout, socket) do
     if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
+    if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
     result_data =
       Simon.create_result_entry(
         socket.assigns.user_id,
@@ -144,9 +153,8 @@ defmodule BeamWeb.Tasks.SimonLive do
 
   def handle_info(:save_results, socket) do
     if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
-
+    if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
     {task_id, result_id} = save_final_result(socket)
-
     case socket.assigns.live_action do
       :test ->
         Beam.Exercices.save_test_attempt(socket.assigns.user_id, task_id, result_id)
@@ -227,6 +235,31 @@ defmodule BeamWeb.Tasks.SimonLive do
     end
   end
 
+  def handle_event("toggle_pause", _params, socket) do
+    paused = !socket.assigns.paused
+
+    if paused do
+      if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
+      if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
+      pause_info = %{
+        time_remaining: socket.assigns.time_remaining
+      }
+      {:noreply, assign(socket, paused: true, pause_info: pause_info, timer_ref: nil, timeout_ref: nil)}
+    else
+      %{time_remaining: time_left} = socket.assigns.pause_info
+      {:ok, timer_ref} = :timer.send_interval(1000, self(), :tick)
+      timeout_ref = Process.send_after(self(), :timeout, max(time_left, 1))
+      {:noreply,
+        assign(socket,
+          paused: false,
+          pause_info: nil,
+          timer_ref: timer_ref,
+          timeout_ref: timeout_ref,
+          time_remaining: time_left
+        )}
+    end
+  end
+
   defp animate_sequence(socket) do
     send(self(), {:animate_sequence, socket.assigns.sequence, 0})
     socket
@@ -256,6 +289,40 @@ defmodule BeamWeb.Tasks.SimonLive do
       <div class="absolute top-2 right-4 text-sm text-gray-500">
         <%= div(@time_remaining, 1000) %>s
       </div>
+
+      <%= if @current_user && @current_user.type == "Terapeuta" && !@preparing_task && !@calculating_results do %>
+        <button
+          type="button"
+          phx-click="toggle_pause"
+          class={"absolute top-12 right-4 z-30 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+                (if @paused, do: "ring-2 ring-yellow-200", else: "")}
+          title={if @paused, do: "Retomar", else: "Pausar"}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <%= if @paused do %>
+              <polygon points="10,8 16,12 10,16" fill="currentColor"/>
+            <% else %>
+              <rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>
+            <% end %>
+          </svg>
+        </button>
+      <% end %>
+
+      <%= if @paused do %>
+        <div class="fixed inset-0 z-40 bg-black bg-opacity-70 flex flex-col justify-center items-center">
+          <button
+            phx-click="toggle_pause"
+            class="flex flex-col items-center group focus:outline-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-28 h-28 mb-4 text-yellow-400 group-hover:text-yellow-300 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+              <polygon points="10,8 16,12 10,16" fill="currentColor"/>
+            </svg>
+            <span class="text-4xl font-black text-yellow-200 group-hover:text-yellow-100">Retomar</span>
+          </button>
+          <span class="mt-4 text-white text-lg">Clique no botão acima para continuar o exercício</span>
+        </div>
+      <% end %>
 
       <%= if @preparing_task do %>
         <p class="text-xl animate-pulse text-gray-700">A preparar tarefa...</p>

@@ -1,5 +1,5 @@
 <.flash_group flash={@flash} />
-<div class="w-screen h-screen overflow-hidden relative before:block before:absolute before:bg-black before:h-full before:w-full before:top-0 before:left-0 before:z-10 before:opacity-30">
+<div class="w-full h-screen overflow-hidden relative before:block before:absolute before:bg-black before:h-full before:w-full before:top-0 before:left-0 before:z-10 before:opacity-30">
   <img src={~p"/images/homebrain.jpg"} class="absolute top-0 left-0 w-full h-full object-cover" />
   <div class="relative z-20 max-w-screen-lg mx-auto grid grid-cols-12 h-full items-center">
     <div class="col-span-6">
@@ -13,9 +13,9 @@
       <div class="flex space-x-4">
         <.link
           navigate={~p"/users/register"}
-          class="text-white uppercase py-4 text-base font-light px-10 border border-white hover:bg-white hover:bg-opacity-10"
+          class="text-white uppercase py-4 text-base font-light px-8 border border-white hover:bg-white hover:bg-opacity-10"
         >
-          Começar
+          Juntar como Terapeuta
         </.link>
         <.link
           navigate={~p"/users/log_in"}
@@ -27,14 +27,14 @@
     </div>
   </div>
 </div>
-<div class="bg-blue-400 py-20 w-full w-screen ">
+<div class="bg-blue-400 py-16 w-full w-full ">
   <div class="max-w-screen-lg mx-auto flex justify-between items-center">
     <div class="max-w-xl">
       <h2 class="font-black text-sky-950 text-3xl mb-4">
         Começa a Treinar Hoje
       </h2>
       <p class="text-base text-sky-950">
-        O objetivo da nossa plataforma é aperfeiçoar as tuas capacidades de atenção através de exercícios envolventes e eficazes.
+        BEAM significa <span class="italic">Brain Engagement and Attention Management</span> e tem uma variedade de exercícios criados para treinar diferentes aspetos da atenção e das capacidades cognitivas. <br> Cada exercício inclui níveis de dificuldade de treino e testes, além de permitir editar e adaptar as tarefas conforme as necessidades ou objetivos.
       </p>
     </div>
     <.link
@@ -43,5 +43,26 @@
     >
       Começar
     </.link>
+  </div>
+</div>
+<div class="bg-blue-300 py-16 w-full">
+  <div class="max-w-screen-lg mx-auto flex flex-col-reverse md:flex-row justify-between items-center px-4">
+    <.link
+      href="https://github.com/zeisalone/beam"
+      target="_blank"
+      rel="noopener"
+      class="text-black uppercase py-3 text-base px-10 border border-black hover:bg-black hover:text-white hover:bg-opacity-10 mb-8 md:mb-0"
+    >
+      Ver Código no Github
+    </.link>
+    <div class="max-w-xl md:text-right text-left">
+      <h2 class="font-black text-sky-950 text-3xl mb-4">
+        Sobre o Projeto
+      </h2>
+      <p class="text-base text-sky-950">
+        Desenvolvido por José Barbosa como parte da sua tese de Mestrado em Engenharia Informática na Universidade do Minho,
+        com a orientação dos Professores Pedro Rangel Henriques, João Cerqueira e Cristiana Araújo.
+      </p>
+    </div>
   </div>
 </div>
