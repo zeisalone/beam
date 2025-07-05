@@ -46,36 +46,37 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       if connected?(socket), do: Process.send_after(self(), :start_round, 500)
 
       {:ok,
-      assign(socket,
-        current_user: current_user,
-        user_id: current_user.id,
-        task_id: task_id,
-        sequence: [],
-        user_input: [],
-        correct: 0,
-        wrong: 0,
-        omitted: 0,
-        full_sequence: 0,
-        attempts: 0,
-        start_time: nil,
-        total_reaction_time: 0,
-        timeout_ref: nil,
-        live_action: live_action,
-        difficulty: chosen_difficulty,
-        show_sequence: false,
-        full_screen?: true,
-        game_finished: false,
-        preparing: true,
-        sequence_duration: sequence_duration,
-        response_timeout: response_timeout,
-        total_attempts: total_attempts,
-        config: config,
-        paused: false,
-        pause_info: nil,
-        timer_phase: nil,
-        timer_start: nil,
-        time_left: nil
-      )}
+        assign(socket,
+          current_user: current_user,
+          user_id: current_user.id,
+          task_id: task_id,
+          sequence: [],
+          user_input: [],
+          correct: 0,
+          wrong: 0,
+          omitted: 0,
+          full_sequence: 0,
+          attempts: 0,
+          start_time: nil,
+          total_reaction_time: 0,
+          timeout_ref: nil,
+          tick_ref: nil,
+          live_action: live_action,
+          difficulty: chosen_difficulty,
+          show_sequence: false,
+          full_screen?: true,
+          game_finished: false,
+          preparing: true,
+          sequence_duration: sequence_duration,
+          response_timeout: response_timeout,
+          total_attempts: total_attempts,
+          config: config,
+          paused: false,
+          pause_info: nil,
+          timer_phase: nil,
+          timer_start: nil,
+          time_left: nil
+        )}
     else
       {:ok, push_navigate(socket, to: "/tasks")}
     end
@@ -91,15 +92,6 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
   defp maybe_to_atom(nil), do: nil
   defp maybe_to_atom(value) when is_binary(value), do: String.to_existing_atom(value)
   defp maybe_to_atom(value), do: value
-
-  def handle_info(:hide_sequence, socket) do
-    if socket.assigns.paused do
-      {:noreply, socket}
-    else
-      timeout_ref = Process.send_after(self(), :timeout, socket.assigns.response_timeout)
-      {:noreply, assign(socket, show_sequence: false, start_time: System.monotonic_time(), timeout_ref: timeout_ref, timer_phase: :input, timer_start: System.monotonic_time(:millisecond))}
-    end
-  end
 
   def handle_info(:start_round, socket) do
     if socket.assigns.paused do
@@ -117,15 +109,55 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       ref = Process.send_after(self(), :hide_sequence, socket.assigns.sequence_duration)
 
       {:noreply,
-       assign(socket,
-         preparing: false,
-         show_sequence: true,
-         sequence: sequence,
-         user_input: List.duplicate("", length(sequence)),
-         timeout_ref: ref,
-         timer_phase: :sequence,
-         timer_start: System.monotonic_time(:millisecond)
-       )}
+        assign(socket,
+          preparing: false,
+          show_sequence: true,
+          sequence: sequence,
+          user_input: List.duplicate("", length(sequence)),
+          timeout_ref: ref,
+          tick_ref: nil,
+          timer_phase: :sequence,
+          timer_start: System.monotonic_time(:millisecond),
+          time_left: nil
+        )
+      }
+    end
+  end
+
+  def handle_info(:hide_sequence, socket) do
+    if socket.assigns.paused do
+      {:noreply, socket}
+    else
+      response_timeout = socket.assigns.response_timeout
+
+      timeout_ref = Process.send_after(self(), :timeout, response_timeout)
+      tick_ref = Process.send_after(self(), :tick, 1000)
+
+      {:noreply,
+        assign(socket,
+          show_sequence: false,
+          start_time: System.monotonic_time(),
+          timeout_ref: timeout_ref,
+          tick_ref: tick_ref,
+          timer_phase: :input,
+          timer_start: System.monotonic_time(:millisecond),
+          time_left: div(response_timeout, 1000)
+        )
+      }
+    end
+  end
+
+  def handle_info(:tick, socket) do
+    if socket.assigns.paused or socket.assigns.game_finished or socket.assigns.show_sequence do
+      {:noreply, socket}
+    else
+      new_time = (socket.assigns.time_left || 1) - 1
+      if new_time <= 0 do
+        {:noreply, assign(socket, time_left: 0, tick_ref: nil)}
+      else
+        tick_ref = Process.send_after(self(), :tick, 1000)
+        {:noreply, assign(socket, time_left: new_time, tick_ref: tick_ref)}
+      end
     end
   end
 
@@ -133,6 +165,9 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
     if socket.assigns.paused or socket.assigns.game_finished do
       {:noreply, socket}
     else
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
+      if is_reference(socket.assigns.timeout_ref), do: Process.cancel_timer(socket.assigns.timeout_ref)
+
       padded_input =
         socket.assigns.user_input ++ List.duplicate(nil, length(socket.assigns.sequence) - length(socket.assigns.user_input))
 
@@ -165,7 +200,9 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            total_reaction_time: new_total_reaction_time,
            full_sequence: new_full_sequence,
            game_finished: true,
-           timeout_ref: nil
+           timeout_ref: nil,
+           tick_ref: nil,
+           time_left: nil
          )}
       else
         send(self(), :start_round)
@@ -178,7 +215,9 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
            full_sequence: new_full_sequence,
            attempts: new_attempts,
            total_reaction_time: new_total_reaction_time,
-           timeout_ref: nil
+           timeout_ref: nil,
+           tick_ref: nil,
+           time_left: nil
          )}
       end
     end
@@ -200,7 +239,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
         )
     end
 
-    Process.sleep(5000)
+    Process.sleep(2000)
     {:noreply, push_navigate(socket, to: ~p"/results/aftertask?task_id=#{task_id}")}
   end
 
@@ -213,40 +252,36 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       paused = !socket.assigns.paused
 
       if paused do
-        now = System.monotonic_time(:millisecond)
-        phase = if socket.assigns.show_sequence, do: :sequence, else: if(socket.assigns.preparing, do: :preparing, else: :input)
-        timer_start = socket.assigns.timer_start
-        ref = socket.assigns.timeout_ref
-        time_passed = if timer_start, do: now - timer_start, else: 0
-        time_left =
-          case phase do
-            :sequence -> max(socket.assigns.sequence_duration - time_passed, 1)
-            :input -> max(socket.assigns.response_timeout - time_passed, 1)
-            :preparing -> 500
-          end
-
-        if is_reference(ref), do: Process.cancel_timer(ref)
-
-        {:noreply, assign(socket, paused: true, pause_info: %{phase: phase, time_left: time_left})}
+        if socket.assigns.timer_phase == :input do
+          now = System.monotonic_time(:millisecond)
+          timer_start = socket.assigns.timer_start
+          time_passed = if timer_start, do: now - timer_start, else: 0
+          time_left = max(socket.assigns.response_timeout - time_passed, 1)
+          sec_left = div(time_left, 1000)
+          if is_reference(socket.assigns.timeout_ref), do: Process.cancel_timer(socket.assigns.timeout_ref)
+          if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
+          {:noreply, assign(socket, paused: true, pause_info: %{time_left: time_left, sec_left: sec_left})}
+        else
+          {:noreply, assign(socket, paused: true, pause_info: %{})}
+        end
       else
-        %{phase: phase, time_left: time_left} = socket.assigns.pause_info || %{phase: nil, time_left: nil}
-
-        msg =
-          case phase do
-            :sequence -> :hide_sequence
-            :input -> :timeout
-            :preparing -> :start_round
-            _ -> nil
-          end
-
-        ref =
-          if not socket.assigns.game_finished and msg do
-            Process.send_after(self(), msg, time_left)
-          else
-            nil
-          end
-
-        {:noreply, assign(socket, paused: false, pause_info: nil, timeout_ref: ref, timer_start: System.monotonic_time(:millisecond))}
+        if socket.assigns.timer_phase == :input do
+          %{time_left: ms_left, sec_left: sec_left} = socket.assigns.pause_info || %{time_left: socket.assigns.response_timeout, sec_left: div(socket.assigns.response_timeout, 1000)}
+          timeout_ref = Process.send_after(self(), :timeout, ms_left)
+          tick_ref = Process.send_after(self(), :tick, 1000)
+          {:noreply,
+            assign(socket,
+              paused: false,
+              pause_info: nil,
+              timeout_ref: timeout_ref,
+              tick_ref: tick_ref,
+              timer_start: System.monotonic_time(:millisecond),
+              time_left: sec_left
+            )
+          }
+        else
+          {:noreply, assign(socket, paused: false, pause_info: nil)}
+        end
       end
     else
       {:noreply, socket}
@@ -269,7 +304,8 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
   end
 
   def handle_event("submit", %{"numbers" => numbers}, socket) do
-    if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
+    if is_reference(socket.assigns.timeout_ref), do: Process.cancel_timer(socket.assigns.timeout_ref)
+    if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
 
     user_input =
       numbers
@@ -306,28 +342,32 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
       send(self(), :save_results)
 
       {:noreply,
-       assign(socket,
-         correct: new_correct,
-         wrong: new_wrong,
-         omitted: new_omitted,
-         total_reaction_time: new_total_reaction_time,
-         full_sequence: new_full_sequence,
-         game_finished: true,
-         timeout_ref: nil
-       )}
+        assign(socket,
+          correct: new_correct,
+          wrong: new_wrong,
+          omitted: new_omitted,
+          total_reaction_time: new_total_reaction_time,
+          full_sequence: new_full_sequence,
+          game_finished: true,
+          timeout_ref: nil,
+          tick_ref: nil,
+          time_left: nil
+        )}
     else
       send(self(), :start_round)
 
       {:noreply,
-       assign(socket,
-         correct: new_correct,
-         wrong: new_wrong,
-         omitted: new_omitted,
-         full_sequence: new_full_sequence,
-         attempts: new_attempts,
-         total_reaction_time: new_total_reaction_time,
-         timeout_ref: nil
-       )}
+        assign(socket,
+          correct: new_correct,
+          wrong: new_wrong,
+          omitted: new_omitted,
+          full_sequence: new_full_sequence,
+          attempts: new_attempts,
+          total_reaction_time: new_total_reaction_time,
+          timeout_ref: nil,
+          tick_ref: nil,
+          time_left: nil
+        )}
     end
   end
 
@@ -368,7 +408,7 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
         <button
           type="button"
           phx-click="toggle_pause"
-          class="absolute right-6 top-6 z-40 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition"
+          class="absolute right-6 top-8 z-40 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition"
           title={if @paused, do: "Retomar", else: "Pausar"}
         >
           <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
@@ -399,6 +439,9 @@ defmodule BeamWeb.Tasks.ReverseSequenceLive do
               <%= Enum.join(@sequence, " ") %>
             </p>
           <% else %>
+            <div class="absolute top-2 right-4 text-lg text-gray-500 font-bold">
+              <%= @time_left %>s
+            </div>
             <form phx-submit="submit" phx-change="update_input" id="reverse-sequence-form">
               <div class="flex space-x-2">
                 <%= for {_, i} <- Enum.with_index(@sequence) do %>

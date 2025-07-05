@@ -20,14 +20,15 @@
               </span>
             </td>
             <td class="px-4 py-4">
-              <div class="w-24 h-14 rounded-lg bg-primary-100 flex items-center justify-center overflow-hidden group">
+              <div class="w-28 h-16 rounded-lg bg-primary-100 flex items-center justify-center overflow-hidden group">
                 <%= if task.image_path do %>
                   <img
                     src={task.image_path}
                     alt={"Imagem de #{task.name}"}
                     data-image={task.image_path}
-                    class="w-24 h-10 object-cover group-hover:scale-110 transition-transform cursor-pointer"
-                    onclick="openImageModal(this.dataset.image)"
+                    data-task-id={task.id}
+                    class="w-28 h-12 object-cover group-hover:scale-110 transition-transform cursor-pointer"
+                    onclick="openImageModal(this.dataset.image, this.dataset.taskId)"
                   />
                 <% end %>
               </div>
@@ -76,21 +77,29 @@
 <div id="image-modal" class="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 hidden" onclick="closeImageModal()">
   <div class="relative" onclick="event.stopPropagation()">
     <button onclick="closeImageModal()" class="absolute top-2 right-2 text-white text-3xl font-bold">&times;</button>
-    <img id="modal-image" src="" class="max-w-[90vw] max-h-[90vh] rounded shadow-lg" />
+    <img id="modal-image" src="" class="max-w-[90vw] max-h-[90vh] rounded shadow-lg cursor-pointer" data-task-id="" onclick="goToTaskPage(this)" />
   </div>
 </div>
 
 <%= Phoenix.HTML.raw(~S"""
 <script>
-  function openImageModal(src) {
+  function openImageModal(src, taskId) {
     const modal = document.getElementById("image-modal")
     const img = document.getElementById("modal-image")
     modal.classList.remove("hidden")
     img.src = src
+    img.setAttribute("data-task-id", taskId)
   }
 
   function closeImageModal() {
     document.getElementById("image-modal").classList.add("hidden")
+  }
+
+  function goToTaskPage(img) {
+    const taskId = img.getAttribute("data-task-id")
+    if (taskId) {
+      window.location.href = `/tasks/${taskId}`
+    }
   }
 </script>
 """) %>

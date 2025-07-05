@@ -64,11 +64,11 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
           loading: true,
           full_screen?: full_screen,
           timeout_ref: nil,
+          timer_ref: nil,
           response_timeout: response_timeout,
           paused: false,
           pause_info: nil,
-          timer_start: nil,
-          time_left: nil
+          time_left: response_timeout
         )
 
       if connected?(socket), do: Process.send_after(self(), :hide_loading, 1000)
@@ -79,7 +79,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
   end
 
   def handle_event("start_task", _params, socket) do
-    now = System.monotonic_time(:millisecond)
+    {:ok, timer_ref} = :timer.send_interval(1000, self(), :tick)
     timeout_ref = Process.send_after(self(), :timeout, socket.assigns.response_timeout)
 
     {:noreply,
@@ -88,7 +88,9 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
        show_code: false,
        start_time: System.monotonic_time(),
        timeout_ref: timeout_ref,
-       timer_start: now,
+       timer_ref: timer_ref,
+       paused: false,
+       pause_info: nil,
        time_left: socket.assigns.response_timeout
      )}
   end
@@ -103,16 +105,22 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     if can_pause do
       paused = !socket.assigns.paused
       if paused do
-        now = System.monotonic_time(:millisecond)
-        timer_start = socket.assigns.timer_start
-        time_passed = if timer_start, do: now - timer_start, else: 0
-        time_left = max(socket.assigns.response_timeout - time_passed, 1)
-        if is_reference(socket.assigns.timeout_ref), do: Process.cancel_timer(socket.assigns.timeout_ref)
-        {:noreply, assign(socket, paused: true, pause_info: %{time_left: time_left})}
+        if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
+        if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
+        {:noreply, assign(socket, paused: true, pause_info: %{time_left: socket.assigns.time_left}, timer_ref: nil, timeout_ref: nil)}
       else
-        %{time_left: time_left} = socket.assigns.pause_info || %{time_left: nil}
-        ref = Process.send_after(self(), :timeout, time_left)
-        {:noreply, assign(socket, paused: false, pause_info: nil, timeout_ref: ref, timer_start: System.monotonic_time(:millisecond))}
+        %{time_left: time_left} = socket.assigns.pause_info
+        {:ok, timer_ref} = :timer.send_interval(1000, self(), :tick)
+        timeout_ref = Process.send_after(self(), :timeout, max(time_left, 1))
+        {:noreply,
+          assign(socket,
+            paused: false,
+            pause_info: nil,
+            timer_ref: timer_ref,
+            timeout_ref: timeout_ref,
+            time_left: time_left
+          )
+        }
       end
     else
       {:noreply, socket}
@@ -131,6 +139,7 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
 
   def handle_event("submit", _params, socket) do
     if socket.assigns.timeout_ref, do: Process.cancel_timer(socket.assigns.timeout_ref)
+    if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
     process_result(socket)
   end
 
@@ -146,7 +155,22 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
     if socket.assigns.paused do
       {:noreply, socket}
     else
+      if socket.assigns.timer_ref, do: :timer.cancel(socket.assigns.timer_ref)
       process_result(socket)
+    end
+  end
+
+  def handle_info(:tick, socket) do
+    if socket.assigns.paused or socket.assigns.game_finished do
+      {:noreply, socket}
+    else
+      new_time = socket.assigns.time_left - 1000
+      if new_time <= 0 do
+        send(self(), :timeout)
+        {:noreply, assign(socket, time_left: 0)}
+      else
+        {:noreply, assign(socket, time_left: new_time)}
+      end
     end
   end
 
@@ -292,6 +316,9 @@ defmodule BeamWeb.Tasks.CodeOfSymbolsLive do
               </button>
             </div>
           <% else %>
+            <div class="absolute top-2 right-4 text-lg text-gray-500 font-bold">
+              <%= div(@time_left, 1000) %>s
+            </div>
             <%= if @current_user.type == "Terapeuta" do %>
               <button
                 type="button"

@@ -83,7 +83,10 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
        paused: false,
        pause_info: nil,
        timer_ref: nil,
-       timer_start: nil
+       timer_start: nil,
+       omission_timer_ref: nil,
+       time_left: nil,
+       tick_ref: nil
      )}
   end
 
@@ -111,11 +114,14 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
          awaiting_response: false,
          show_intro: false,
          timer_ref: ref,
-         timer_start: now_ms()
+         timer_start: now_ms(),
+         omission_timer_ref: nil,
+         time_left: nil,
+         tick_ref: nil
        )}
     else
       Process.send_after(self(), :save_results, 0)
-      {:noreply, assign(socket, finished: true)}
+      {:noreply, assign(socket, finished: true, time_left: nil, tick_ref: nil)}
     end
   end
 
@@ -140,7 +146,8 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
 
     options = NameAndColor.generate_options(trial, question)
     timeout = socket.assigns.question_time
-    ref = Process.send_after(self(), :handle_omission, timeout)
+    omission_ref = Process.send_after(self(), :handle_omission, timeout)
+    tick_ref = Process.send_after(self(), :tick, 1000)
 
     {:noreply,
      assign(socket,
@@ -149,15 +156,32 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
        options: options,
        start_time: System.monotonic_time(),
        awaiting_response: true,
-       omission_timer_ref: ref,
-       timer_ref: ref,
-       timer_start: now_ms()
+       omission_timer_ref: omission_ref,
+       timer_ref: omission_ref,
+       timer_start: now_ms(),
+       time_left: div(timeout, 1000),
+       tick_ref: tick_ref
      )}
+  end
+
+  def handle_info(:tick, socket) do
+    if socket.assigns.paused or socket.assigns.finished or not socket.assigns.show_question do
+      {:noreply, socket}
+    else
+      new_time = (socket.assigns.time_left || 1) - 1
+      if new_time <= 0 do
+        {:noreply, assign(socket, time_left: 0, tick_ref: nil)}
+      else
+        tick_ref = Process.send_after(self(), :tick, 1000)
+        {:noreply, assign(socket, time_left: new_time, tick_ref: tick_ref)}
+      end
+    end
   end
 
   def handle_info(:handle_omission, socket) do
     if socket.assigns.awaiting_response do
-      update_result(:omitted, assign(socket, omission_timer_ref: nil, timer_ref: nil, timer_start: nil), 0)
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
+      update_result(:omitted, assign(socket, omission_timer_ref: nil, timer_ref: nil, timer_start: nil, time_left: nil, tick_ref: nil), 0)
     else
       {:noreply, socket}
     end
@@ -188,6 +212,7 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
     end
   end
 
+  @impl true
   def handle_event("toggle_pause", _params, socket) do
     paused = !socket.assigns.paused
 
@@ -195,35 +220,46 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
       time_passed = now_ms() - (socket.assigns.timer_start || now_ms())
       time_left =
         cond do
-          socket.assigns.show_intro and socket.assigns.timer_ref -> max(2000 - time_passed, 1)
-          not socket.assigns.show_question and socket.assigns.timer_ref -> max(socket.assigns.display_time - time_passed, 1)
-          socket.assigns.show_question and socket.assigns.timer_ref -> max(socket.assigns.question_time - time_passed, 1)
+          socket.assigns.show_intro and socket.assigns.timer_ref != nil -> max(2000 - time_passed, 1)
+          not socket.assigns.show_question and socket.assigns.timer_ref != nil -> max(socket.assigns.display_time - time_passed, 1)
+          socket.assigns.show_question and socket.assigns.timer_ref != nil -> max(socket.assigns.question_time - time_passed, 1)
           true -> nil
         end
 
       if is_reference(socket.assigns.timer_ref), do: Process.cancel_timer(socket.assigns.timer_ref)
+      if is_reference(socket.assigns.omission_timer_ref), do: Process.cancel_timer(socket.assigns.omission_timer_ref)
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
 
-      {:noreply, assign(socket, paused: true, pause_info: %{phase: get_phase(socket), time_left: time_left}, timer_ref: nil)}
+      {:noreply, assign(socket, paused: true, pause_info: %{phase: get_phase(socket), time_left: time_left}, timer_ref: nil, omission_timer_ref: nil, tick_ref: nil)}
     else
       time_left = socket.assigns.pause_info && socket.assigns.pause_info[:time_left]
       phase = socket.assigns.pause_info && socket.assigns.pause_info[:phase]
 
-      {_msg, ref} =
+      ref =
         case phase do
-          :intro -> {:start_trial, Process.send_after(self(), :start_trial, time_left)}
-          :display -> {:show_question, Process.send_after(self(), :show_question, time_left)}
-          :question -> {:handle_omission, Process.send_after(self(), :handle_omission, time_left)}
-          _ -> {nil, nil}
+          :intro -> Process.send_after(self(), :start_trial, time_left)
+          :display -> Process.send_after(self(), :show_question, time_left)
+          :question ->
+            omission_ref = Process.send_after(self(), :handle_omission, time_left)
+            tick_ref = Process.send_after(self(), :tick, 1000)
+            assign(socket, omission_timer_ref: omission_ref, timer_ref: omission_ref, tick_ref: tick_ref)
+          _ -> nil
         end
 
-      {:noreply, assign(socket, paused: false, pause_info: nil, timer_ref: ref, timer_start: now_ms())}
+      if phase == :question do
+        {:noreply, assign(ref, paused: false, pause_info: nil, timer_start: now_ms())}
+      else
+        {:noreply, assign(socket, paused: false, pause_info: nil, timer_ref: ref, timer_start: now_ms())}
+      end
     end
   end
 
   @impl true
   def handle_event("submit_answer", %{"answer" => answer}, socket) do
     if socket.assigns.awaiting_response and not socket.assigns.paused do
-      Process.cancel_timer(socket.assigns.omission_timer_ref)
+      if is_reference(socket.assigns.omission_timer_ref), do: Process.cancel_timer(socket.assigns.omission_timer_ref)
+      if is_reference(socket.assigns.timer_ref), do: Process.cancel_timer(socket.assigns.timer_ref)
+      if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
 
       reaction_time =
         System.monotonic_time() - socket.assigns.start_time
@@ -232,7 +268,7 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
       correct_answer = NameAndColor.correct_answer(socket.assigns.current_trial, socket.assigns.question)
       result = if answer == correct_answer, do: :correct, else: :wrong
 
-      update_result(result, assign(socket, omission_timer_ref: nil, timer_ref: nil, timer_start: nil), reaction_time)
+      update_result(result, assign(socket, omission_timer_ref: nil, timer_ref: nil, timer_start: nil, time_left: nil, tick_ref: nil), reaction_time)
     else
       {:noreply, socket}
     end
@@ -259,7 +295,9 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
        total_reaction_time: socket.assigns.total_reaction_time + reaction_time,
        results: new_results,
        timer_ref: ref,
-       timer_start: now_ms()
+       timer_start: now_ms(),
+       time_left: nil,
+       tick_ref: nil
      )
      |> assign(updates)}
   end
@@ -286,12 +324,14 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
   def render(assigns) do
     ~H"""
     <div class="fixed inset-0 w-screen h-screen flex items-center justify-center bg-white">
-      <%= if @current_user.type == "Terapeuta" do %>
+      <%= if @current_user.type == "Terapeuta" and not @finished do %>
         <button
           type="button"
           phx-click="toggle_pause"
-          class="absolute right-6 top-6 z-30 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition"
+          class={"absolute right-6 top-8 z-30 bg-yellow-100 border-2 border-yellow-400 rounded-full p-2 hover:bg-yellow-200 transition " <>
+            (if @paused or @show_intro or @finished, do: "opacity-40 pointer-events-none", else: "")}
           title={if @paused, do: "Retomar", else: "Pausar"}
+          disabled={@paused or @show_intro or @finished}
         >
           <.icon name={if @paused, do: "hero-play-mini", else: "hero-pause-mini"} class="w-8 h-8 text-yellow-700" />
         </button>
@@ -318,6 +358,9 @@ defmodule BeamWeb.Tasks.NameAndColorLive do
             <%= if not @show_question do %>
               <p class="text-5xl font-bold mb-8" style={"color: #{@display_color}"}><%= @display_text %></p>
             <% else %>
+              <div class="absolute top-2 right-4 text-lg text-gray-500 font-bold">
+                <%= @time_left %>s
+              </div>
               <p class="text-xl mb-4">
                 Qual era a <strong><%= if @question == :word, do: "PALAVRA", else: "COR" %></strong>?
               </p>

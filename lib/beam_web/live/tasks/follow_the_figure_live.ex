@@ -63,7 +63,6 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
       {:noreply, socket}
     else
       new_time = max(socket.assigns.time_left - 1000, 0)
-      # Só reenvia timer se não chegou a 0
       tick_ref = if new_time > 0, do: Process.send_after(self(), :tick, 1000), else: nil
       if new_time == 0, do: send(self(), :timeout)
       {:noreply, assign(socket, time_left: new_time, tick_ref: tick_ref)}
@@ -83,7 +82,6 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
 
     round_data = FollowTheFigure.generate_round(socket.assigns.round, level_or_config)
 
-    # Só inicia o timer no primeiro round (não recomeça a cada round)
     socket =
       if socket.assigns.round == 1 and not socket.assigns.paused do
         tick_ref = Process.send_after(self(), :tick, 1000)
@@ -124,11 +122,9 @@ defmodule BeamWeb.Tasks.FollowTheFigureLive do
     paused = !socket.assigns.paused
 
     if paused do
-      # Cancela timer do tick se existir
       if is_reference(socket.assigns.tick_ref), do: Process.cancel_timer(socket.assigns.tick_ref)
       {:noreply, assign(socket, paused: true, pause_info: %{time_left: socket.assigns.time_left}, tick_ref: nil)}
     else
-      # Só volta a contar se não terminou
       tick_ref = if socket.assigns.time_left > 0, do: Process.send_after(self(), :tick, 1000), else: nil
       {:noreply, assign(socket, paused: false, pause_info: nil, tick_ref: tick_ref)}
     end
