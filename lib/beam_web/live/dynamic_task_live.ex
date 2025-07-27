@@ -49,6 +49,7 @@ defmodule BeamWeb.DynamicTaskLive do
   defp resolve_live_view("simon"), do: BeamWeb.Tasks.SimonLive
   defp resolve_live_view("searching_for_a_vowel"), do: BeamWeb.Tasks.SearchingForAVowelLive
   defp resolve_live_view("order_animals"), do: BeamWeb.Tasks.OrderAnimalsLive
+  defp resolve_live_view("odd_one_out"), do: BeamWeb.Tasks.OddOneOutLive
   defp resolve_live_view(_), do: BeamWeb.Tasks.MathOperationLive
 
   defp maybe_to_atom(nil), do: nil

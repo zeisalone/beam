@@ -13,7 +13,8 @@ defmodule BeamWeb.TaskController do
     "Manipulação Cognitiva" => "bg-indigo-100 text-indigo-700 hover:bg-indigo-200",
     "Atenção Seletiva" => "bg-lime-100 text-lime-700 hover:bg-lime-200",
     "Inibição de Resposta" => "bg-red-100 text-red-700 hover:bg-red-200",
-    "Flexibilidade Cognitiva" => "bg-orange-100 text-orange-700 hover:bg-orange-200"
+    "Flexibilidade Cognitiva" => "bg-orange-100 text-orange-700 hover:bg-orange-200",
+    "Discriminação Visual" => "bg-orange-100 text-orange-700 hover:bg-orange-200"
   }
 
   def index(conn, _params) do

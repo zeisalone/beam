@@ -12,6 +12,7 @@ defmodule Beam.Exercices.TaskList do
     simon: 8,
     searching_for_a_vowel: 9,
     order_animals: 10,
+    odd_one_out: 11
   }
 
   def task_id(:math_operation), do: Map.get(@task_mapping, :math_operation)
@@ -24,4 +25,5 @@ defmodule Beam.Exercices.TaskList do
   def task_id(:simon), do: Map.get(@task_mapping, :simon)
   def task_id(:searching_for_a_vowel), do: Map.get(@task_mapping, :searching_for_a_vowel)
   def task_id(:order_animals), do: Map.get(@task_mapping, :order_animals)
+  def task_id(:odd_one_out), do: Map.get(@task_mapping, :odd_one_out)
 end

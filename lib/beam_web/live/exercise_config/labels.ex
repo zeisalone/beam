@@ -35,7 +35,10 @@ defmodule BeamWeb.ExerciseConfig.Labels do
     animal_total_time: "Tempo por Animal",
     max_sequence: "Tamanho Máximo da Sequência",
     min_sequence: "Tamanho Mínimo da Sequência",
-    num_distractors_list: "Número de Distratores"
+    num_distractors_list: "Número de Distratores",
+    min_grid_size: "Tamanho Mínimo da Grelha",
+    max_grid_size: "Tamanho Máximo da Grelha",
+    combinations_count: "Número de Combinações Distintas"
   }
 
   @doc """

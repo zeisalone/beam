@@ -296,11 +296,16 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
                   placeholder="Pesquisar paciente..."
                   phx-change="search_patient"
                   value={@patient_search}
-                  class="w-full border rounded px-3 py-2 mb-2 focus:ring-2 focus:ring-blue-500"
+                  class="w-full border rounded px-4 py-2 mb-2 focus:ring-2 focus:ring-blue-500"
                   autocomplete="off"
                 />
               </div>
-              <select name="patient_id" class="rounded border px-2 py-2 text-sm no-arrow-select" size="6">
+              <select
+                name="patient_id"
+                class="rounded border px-2 py-2 text-sm no-arrow-select"
+                size="6"
+                style="min-height: 160px; display: block; width: 100%;"
+              >
                 <%= for p <- @filtered_pacientes do %>
                   <option value={p.patient_id}><%= p.user.name %></option>
                 <% end %>
@@ -310,10 +315,10 @@ defmodule BeamWeb.ExerciseConfig.EditionsReserveLive do
               </select>
 
               <div class="flex justify-end gap-4">
-                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded">
                   Confirmar
                 </button>
-                <button type="button" phx-click="cancel_recommendation" class="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white">
+                <button type="button" phx-click="cancel_recommendation" class="px-4 py-1 rounded bg-red-500 hover:bg-red-600 text-white">
                   Cancelar
                 </button>
               </div>

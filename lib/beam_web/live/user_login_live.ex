@@ -47,9 +47,6 @@ defmodule BeamWeb.UserLoginLive do
 
         <:actions>
           <.input field={@form[:remember_me]} type="checkbox" label="Manter-me autenticado" />
-          <.link href={~p"/users/reset_password"} class="text-sm font-semibold">
-            Perdeu a sua password?
-          </.link>
         </:actions>
         <:actions>
           <.button phx-disable-with="A iniciar sessão..." class="w-full">

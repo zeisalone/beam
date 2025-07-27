@@ -380,6 +380,7 @@ defmodule Beam.Exercices do
       "Matemática" -> {:ok, Beam.Exercices.Tasks.MathOperation}
       "Código de Símbolos" -> {:ok, Beam.Exercices.Tasks.CodeOfSymbols}
       "Stroop" -> {:ok, Beam.Exercices.Tasks.NameAndColor}
+      "O diferente" -> {:ok, Beam.Exercices.Tasks.OddOneOut}
       _ -> {:error, :not_configurable}
     end
   end
