@@ -137,7 +137,7 @@ defmodule BeamWeb.DashboardLive do
 
         <.table id="pacientes" rows={@pacientes}>
           <:col :let={paciente} label="Nome do Paciente">
-            <.link navigate={~p"/dashboard/patient/#{paciente.user.id}"} class="hover:underline">
+            <.link navigate={~p"/dashboard/patient/#{paciente.user.email}"} class="hover:underline">
               {paciente.user.name}
             </.link>
           </:col>

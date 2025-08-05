@@ -54,11 +54,11 @@ defmodule BeamWeb.Results.ResultsMainLive do
   end
 
   def handle_event("select_patient", %{"patient_id" => patient_id}, socket) do
-    case Accounts.get_user_id_by_patient_id(patient_id) do
+    case Accounts.get_user_email_by_patient_id(patient_id) do
       nil ->
         {:noreply, socket}
-      user_id ->
-        {:noreply, push_navigate(socket, to: ~p"/results/per_user?user_id=#{user_id}")}
+      email ->
+        {:noreply, push_navigate(socket, to: ~p"/results/per_user?email=#{email}")}
     end
   end
 

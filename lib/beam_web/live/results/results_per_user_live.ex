@@ -1,20 +1,23 @@
 defmodule BeamWeb.Results.ResultsPerUserLive do
   use BeamWeb, :live_view
   alias Beam.Exercices
+  alias Beam.Accounts
 
   @impl true
   def mount(params, _session, socket) do
     current_user = socket.assigns.current_user
 
     {user_id, user_name} =
-      case current_user.type do
-        "Paciente" -> {current_user.id, current_user.name}
-        "Terapeuta" ->
-          case get_patient(params["user_id"]) do
+      cond do
+        current_user.type == "Paciente" ->
+          {current_user.id, current_user.name}
+        email = params["email"] ->
+          case Accounts.get_user_by_email(email) do
             nil -> {nil, "Desconhecido"}
-            patient -> {patient.user.id, patient.user.name}
+            user -> {user.id, user.name}
           end
-        _ -> {nil, "Desconhecido"}
+        true ->
+          {nil, "Desconhecido"}
       end
 
     tasks = Exercices.list_tasks()
@@ -222,15 +225,6 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
   defp filter_by_result_type(results, "Treino"), do: Enum.filter(results, &String.starts_with?(&1.result_type, "Treino"))
 
   defp format_date(dt), do: dt |> NaiveDateTime.to_date() |> Calendar.strftime("%d/%m/%Y")
-
-  defp get_patient(nil), do: nil
-  defp get_patient(user_id) do
-    Beam.Repo.get_by(Beam.Accounts.Patient, user_id: user_id)
-    |> case do
-      nil      -> nil
-      patient  -> Beam.Repo.preload(patient, :user)
-    end
-  end
 
   defp chart_data_with_compare(assigns) do
     compare_mode = Map.get(assigns, :compare_mode, "none")

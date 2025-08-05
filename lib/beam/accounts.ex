@@ -649,4 +649,14 @@ defmodule Beam.Accounts do
       %{label: label, percent: percent}
     end)
   end
+
+  def get_user_email_by_patient_id(patient_id) do
+    from(p in Beam.Accounts.Patient,
+      where: p.id == ^patient_id,
+      join: u in Beam.Accounts.User,
+      on: p.user_id == u.id,
+      select: u.email
+    )
+    |> Beam.Repo.one()
+  end
 end

@@ -113,8 +113,8 @@ defmodule BeamWeb.Router do
       live "/users/settings", UserSettingsLive, :edit
       live "/users/settings/confirm_email/:token", UserSettingsLive, :confirm_email
       live "/dashboard/new_patient", UserPatientCreationLive, :new
-      live "/dashboard/patient/:patient_id", PatientProfileLive, :show
-      live "/notes/:patient_id", UserNotesLive, :show
+      live "/dashboard/patient/:email", PatientProfileLive, :show
+      live "/notes/:email", UserNotesLive, :show
       live "/dashboard", DashboardLive, :index
       live "/configurations", ExerciseConfig.EditionsReserveLive, :index
     end

@@ -3,31 +3,36 @@ defmodule BeamWeb.PatientProfileLive do
   alias Beam.Accounts
 
   @impl true
-  def mount(%{"patient_id" => patient_id}, _session, socket) do
-    case Accounts.get_patient_with_user(patient_id) do
-      nil ->
+  def mount(%{"email" => email}, _session, socket) do
+    user = Accounts.get_user_by_email(email)
+    patient =
+      if user do
+        Accounts.get_patient_with_user(user.id)
+      else
+        nil
+      end
+
+    case {user, patient} do
+      {nil, _} ->
         {:ok, push_navigate(socket, to: "/dashboard")}
-
-      %{user: user} = patient ->
-        full_user = Accounts.get_user!(user.id)
-
-        age = Accounts.get_patient_age(full_user.id)
-        email = Accounts.get_patient_email(full_user.id)
-        gender = Accounts.get_patient_gender(full_user.id)
-        education = Accounts.get_patient_education(full_user.id)
-
+      {_, nil} ->
+        {:ok, push_navigate(socket, to: "/dashboard")}
+      {user, patient} ->
+        age = Accounts.get_patient_age(user.id)
+        gender = Accounts.get_patient_gender(user.id)
+        education = Accounts.get_patient_education(user.id)
         {:ok,
-        assign(socket,
-          patient: %{patient | user: full_user},
-          user_id: full_user.id,
-          patient_id: patient.id,
-          age: age,
-          gender: gender,
-          education: education,
-          full_screen?: false,
-          open_help: false,
-          email: email
-        )}
+         assign(socket,
+           patient: %{patient | user: user},
+           user_id: user.id,
+           patient_id: patient.id,
+           age: age,
+           gender: gender,
+           education: education,
+           full_screen?: false,
+           open_help: false,
+           email: user.email
+         )}
     end
   end
 
@@ -81,11 +86,11 @@ defmodule BeamWeb.PatientProfileLive do
 
       <div class="p-4 border-t mx-8 mt-2">
         <div class="flex justify-center space-x-4">
-          <.link navigate={~p"/results/per_user?user_id=#{@patient.user.id}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
+          <.link navigate={~p"/results/per_user?email=#{@email}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
             Ver Resultados
           </.link>
 
-          <.link navigate={~p"/notes/#{@patient.user.id}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
+          <.link navigate={~p"/notes/#{@email}"} class="px-6 py-2 rounded-lg bg-gray-900 text-white font-semibold hover:shadow-lg">
             Notas
           </.link>
         </div>

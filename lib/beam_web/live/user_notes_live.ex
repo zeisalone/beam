@@ -2,15 +2,26 @@ defmodule BeamWeb.UserNotesLive do
   use BeamWeb, :live_view
   alias Beam.Accounts
 
-  def mount(%{"patient_id" => patient_id}, _session, socket) do
+  def mount(%{"email" => email}, _session, socket) do
     current_user = socket.assigns.current_user
 
     if current_user.type == "Terapeuta" do
-      case Accounts.get_patient_with_user(patient_id) do
-        nil ->
+      user = Accounts.get_user_by_email(email)
+      patient =
+        if user do
+          Accounts.get_patient_with_user(user.id)
+        else
+          nil
+        end
+
+      case {user, patient} do
+        {nil, _} ->
           {:ok, push_navigate(socket, to: "/dashboard")}
 
-        patient ->
+        {_, nil} ->
+          {:ok, push_navigate(socket, to: "/dashboard")}
+
+        {_user, patient} ->
           therapist = Accounts.get_therapist_by_user_id(current_user.id)
 
           if therapist && therapist.therapist_id == patient.therapist_id do
@@ -22,7 +33,8 @@ defmodule BeamWeb.UserNotesLive do
                therapist_id: therapist.therapist_id,
                notes: notes,
                full_screen?: false,
-               new_note: ""
+               new_note: "",
+               email: email
              )}
           else
             {:ok, push_navigate(socket, to: "/dashboard")}
