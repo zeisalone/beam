@@ -30,6 +30,10 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     test_accuracies_general = Exercices.average_test_accuracy_per_task()
     duo_test_accuracies = duo_test_chart_data(test_accuracies, test_accuracies_general)
     diagnostic_results = if user_id, do: Exercices.diagnostic_test_results_per_task_for_user(user_id), else: []
+    ageband_accuracies = if user_id, do: Exercices.average_accuracy_per_task_for_age_peers(user_id), else: []
+    ageband_reaction_times = if user_id, do: Exercices.average_reaction_time_per_task_for_age_peers(user_id), else: []
+    test_accuracies_ageband = if user_id, do: Exercices.average_test_accuracy_per_task_for_age_peers(user_id), else: []
+
 
     {:ok,
      assign(socket,
@@ -59,7 +63,10 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
        compare_mode: "none",
        test_accuracies: test_accuracies,
        test_accuracies_general: test_accuracies_general,
+       test_accuracies_ageband: test_accuracies_ageband,
        duo_test_accuracies: duo_test_accuracies,
+       ageband_accuracies: ageband_accuracies,
+       ageband_reaction_times: ageband_reaction_times,
        show_temporal_chart?: false,
        temporal_chart_metric: :accuracy,
        temporal_chart_period: :day,
@@ -231,9 +238,7 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     user_data = assigns.task_accuracies
     case compare_mode do
       "media_geral" ->
-        general_data = assigns.general_accuracies
-        general_map = Map.new(general_data, &{&1.task_name, &1.avg_accuracy})
-
+        general_map = Map.new(assigns.general_accuracies, &{&1.task_name, &1.avg_accuracy})
         Enum.map(user_data, fn d ->
           %{
             task_name: d.task_name,
@@ -243,7 +248,6 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
         end)
       "teste_diagnostico" ->
         diag_map = Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_accuracy})
-
         Enum.map(user_data, fn d ->
           %{
             task_name: d.task_name,
@@ -251,8 +255,17 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             diagnostic_accuracy: Map.get(diag_map, d.task_name)
           }
         end)
-
-      _ -> user_data
+      "faixa_etaria" ->
+        ageband_map = Map.new(assigns.ageband_accuracies, &{&1.task_name, &1.avg_accuracy})
+        Enum.map(user_data, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_accuracy: d.avg_accuracy,
+            ageband_avg_accuracy: Map.get(ageband_map, d.task_name)
+          }
+        end)
+      _ ->
+        user_data
     end
   end
 
@@ -261,9 +274,7 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     user_data = assigns.task_reaction_times
     case compare_mode do
       "media_geral" ->
-        general_data = assigns.general_reaction_times
-        general_map = Map.new(general_data, &{&1.task_name, &1.avg_reaction_time})
-
+        general_map = Map.new(assigns.general_reaction_times, &{&1.task_name, &1.avg_reaction_time})
         Enum.map(user_data, fn d ->
           %{
             task_name: d.task_name,
@@ -273,7 +284,6 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
         end)
       "teste_diagnostico" ->
         diag_map = Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_reaction_time})
-
         Enum.map(user_data, fn d ->
           %{
             task_name: d.task_name,
@@ -281,8 +291,17 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             diagnostic_reaction_time: Map.get(diag_map, d.task_name)
           }
         end)
-
-      _ -> user_data
+      "faixa_etaria" ->
+        ageband_map = Map.new(assigns.ageband_reaction_times, &{&1.task_name, &1.avg_reaction_time})
+        Enum.map(user_data, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_reaction_time: d.avg_reaction_time,
+            ageband_avg_reaction_time: Map.get(ageband_map, d.task_name)
+          }
+        end)
+      _ ->
+        user_data
     end
   end
 
@@ -309,6 +328,8 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
     diag_map =
       Map.new(assigns.diagnostic_results, &{&1.task_name, &1.diagnostic_accuracy})
 
+    ageband_map =
+      Map.new(Map.get(assigns, :test_accuracies_ageband, []), &{&1.task_name, &1.avg_accuracy})
     case compare_mode do
       "media_geral" ->
         Enum.map(filtered, fn d ->
@@ -326,7 +347,18 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
             diagnostic_accuracy: Map.get(diag_map, d.task_name)
           }
         end)
-      _ -> filtered
+
+      "faixa_etaria" ->
+        Enum.map(filtered, fn d ->
+          %{
+            task_name: d.task_name,
+            avg_accuracy: d.avg_accuracy,
+            ageband_avg_accuracy: Map.get(ageband_map, d.task_name)
+          }
+        end)
+
+      _ ->
+        filtered
     end
   end
 
@@ -529,6 +561,11 @@ defmodule BeamWeb.Results.ResultsPerUserLive do
                   <input type="radio" name="compare_mode" value="media_geral"
                     checked={@compare_mode == "media_geral"} class="mr-2" />
                   Média Geral
+                </label>
+                <label class="flex items-center text-sm">
+                  <input type="radio" name="compare_mode" value="faixa_etaria"
+                    checked={@compare_mode == "faixa_etaria"} class="mr-2" />
+                  Faixa Etária
                 </label>
                 <label class="flex items-center text-sm">
                   <input type="radio" name="compare_mode" value="teste_diagnostico"

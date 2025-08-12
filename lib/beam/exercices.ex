@@ -6,6 +6,7 @@ defmodule Beam.Exercices do
   import Ecto.Query, warn: false
   alias Beam.Repo
   alias Beam.Exercices.{Recommendation, Task, Result, Test, Training, ExerciseConfiguration}
+  alias Beam.Accounts
 
   def list_tasks do
     from(t in Task, order_by: t.id)
@@ -730,5 +731,64 @@ defmodule Beam.Exercices do
       end
     end)
     |> Enum.filter(& &1)
+  end
+
+  defp age_range_for_age(age) when is_integer(age) do
+    cond do
+      age <= 6   -> {0, 6}
+      age <= 12  -> {7, 12}
+      age <= 18  -> {13, 18}
+      age <= 29  -> {19, 29}
+      age <= 44  -> {30, 44}
+      age <= 59  -> {45, 59}
+      true       -> {60, 150}
+    end
+  end
+
+  defp age_range_for_user(user_id) do
+    case Accounts.get_patient_age(user_id) do
+      nil -> nil
+      age -> age_range_for_age(age)
+    end
+  end
+
+  def average_accuracy_per_task_for_age_peers(user_id) do
+    case age_range_for_user(user_id) do
+      nil -> []
+      range -> average_accuracy_per_task(%{age_range: range})
+    end
+  end
+
+  def average_reaction_time_per_task_for_age_peers(user_id) do
+    case age_range_for_user(user_id) do
+      nil -> []
+      range -> average_reaction_time_per_task(%{age_range: range})
+    end
+  end
+
+  def average_test_accuracy_per_task_for_age_peers(user_id) do
+    case age_range_for_user(user_id) do
+      nil ->
+        []
+
+      {min_age, max_age} ->
+        from(test in Beam.Exercices.Test,
+          join: result in Beam.Exercices.Result, on: test.result_id == result.id,
+          join: task in Beam.Exercices.Task, on: test.task_id == task.id,
+          join: u in Beam.Accounts.User, on: test.user_id == u.id,
+          join: p in Beam.Accounts.Patient, on: u.id == p.user_id,
+          where:
+            u.type == "Paciente" and
+            fragment("FLOOR(DATE_PART('year', AGE(current_date, ?)))", p.birth_date) >= ^min_age and
+            fragment("FLOOR(DATE_PART('year', AGE(current_date, ?)))", p.birth_date) <= ^max_age,
+          group_by: [task.id, task.name],
+          select: %{
+            task_id: task.id,
+            task_name: task.name,
+            avg_accuracy: avg(result.accuracy)
+          }
+        )
+        |> Repo.all()
+    end
   end
 end

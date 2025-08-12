@@ -42,6 +42,21 @@ const AccuracyChart = {
         categoryPercentage: 0.75
       });
     }
+    if (data.length && "ageband_avg_accuracy" in data[0]) {
+      datasets.push({
+        label: 'Faixa Etária',
+        data: data.map(d =>
+          d.ageband_avg_accuracy !== undefined && d.ageband_avg_accuracy !== null
+            ? (d.ageband_avg_accuracy * 100).toFixed(2)
+            : null
+        ),
+        backgroundColor: 'rgba(40, 167, 69, 0.7)',
+        borderColor: 'rgba(40, 167, 69, 1)',
+        borderWidth: 1,
+        barPercentage: 0.75,
+        categoryPercentage: 0.75
+      });
+    }
 
     const ctx = this.el.getContext("2d");
     if (window.accuracyChartInstance) window.accuracyChartInstance.destroy();
@@ -99,6 +114,22 @@ const ReactionChart = {
           : null),
         backgroundColor: 'rgba(255, 99, 132, 0.7)',
         borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 1,
+        barPercentage: 0.75,
+        categoryPercentage: 0.75
+      });
+    }
+
+    if (data.length && "ageband_avg_reaction_time" in data[0]) {
+      datasets.push({
+        label: 'Faixa Etária',
+        data: data.map(d =>
+          d.ageband_avg_reaction_time !== undefined && d.ageband_avg_reaction_time !== null
+            ? parseFloat((d.ageband_avg_reaction_time / 1000).toFixed(2))
+            : null
+        ),
+        backgroundColor: 'rgba(40, 167, 69, 0.7)',
+        borderColor: 'rgba(40, 167, 69, 1)',
         borderWidth: 1,
         barPercentage: 0.75,
         categoryPercentage: 0.75
