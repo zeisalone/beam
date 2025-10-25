@@ -1,6 +1,5 @@
 defmodule BeamWeb.DashboardLive do
   use BeamWeb, :live_view
-
   alias Beam.Accounts
 
   @impl true
@@ -20,17 +19,22 @@ defmodule BeamWeb.DashboardLive do
 
     all_terapeutas = Accounts.list_terapeutas()
 
+    only_mine_default = current_user.type == "Terapeuta"
+
+    pacientes =
+      filter_pacientes(all_pacientes, "", only_mine_default, current_user)
+
     {:ok,
      assign(socket,
        all_pacientes: all_pacientes,
        all_terapeutas: all_terapeutas,
-       pacientes: all_pacientes,
+       pacientes: pacientes,
        terapeutas: all_terapeutas,
-       total_pacientes: length(all_pacientes),
+       total_pacientes: length(pacientes),
        total_terapeutas: length(all_terapeutas),
        search_pacientes: "",
        search_terapeutas: "",
-       only_mine: false,
+       only_mine: only_mine_default,
        full_screen?: false,
        open_help: false,
        current_user: current_user,
@@ -45,14 +49,15 @@ defmodule BeamWeb.DashboardLive do
 
   @impl true
   def handle_event("search_pacientes", %{"search" => search_term}, socket) do
-    pacientes = filter_pacientes(socket.assigns.all_pacientes, search_term, socket.assigns.only_mine, socket.assigns.current_user)
-    {:noreply, assign(socket, pacientes: pacientes, search_pacientes: search_term)}
-  end
+    pacientes =
+      filter_pacientes(
+        socket.assigns.all_pacientes,
+        search_term,
+        socket.assigns.only_mine,
+        socket.assigns.current_user
+      )
 
-  def handle_event("toggle_only_mine", %{"only_mine" => only_mine_val}, socket) do
-    only_mine = only_mine_val == "true"
-    pacientes = filter_pacientes(socket.assigns.all_pacientes, socket.assigns.search_pacientes, only_mine, socket.assigns.current_user)
-    {:noreply, assign(socket, pacientes: pacientes, only_mine: only_mine)}
+    {:noreply, assign(socket, pacientes: pacientes, search_pacientes: search_term)}
   end
 
   @impl true
@@ -63,7 +68,8 @@ defmodule BeamWeb.DashboardLive do
         String.contains?(String.downcase(t.user.name), String.downcase(search_term))
       end)
 
-    terapeutas = if search_term == "", do: socket.assigns.all_terapeutas, else: terapeutas_filtrados
+    terapeutas =
+      if search_term == "", do: socket.assigns.all_terapeutas, else: terapeutas_filtrados
 
     {:noreply, assign(socket, terapeutas: terapeutas, search_terapeutas: search_term)}
   end
@@ -106,19 +112,6 @@ defmodule BeamWeb.DashboardLive do
           <.link navigate={~p"/dashboard/new_patient"} class="text-blue-500 hover:underline">
             Novo Paciente
           </.link>
-        </div>
-        <div class="flex items-center space-x-2 mb-2">
-          <input
-            type="checkbox"
-            name="only_mine"
-            id="only_mine"
-            value="true"
-            checked={@only_mine}
-            phx-click="toggle_only_mine"
-            phx-value-only_mine={to_string(!@only_mine)}
-            class="h-4 w-4 text-blue-600 border-gray-300 rounded"
-          />
-          <label for="only_mine" class="text-sm text-gray-700">Apenas meus pacientes</label>
         </div>
         <div class="mt-3 mb-4 w-full">
           <form phx-change="search_pacientes" class="relative w-full max-w-4xl">
@@ -168,7 +161,6 @@ defmodule BeamWeb.DashboardLive do
           </form>
         </div>
 
-
         <.table id="terapeutas" rows={@terapeutas}>
           <:col :let={terapeuta} label="Nome">
             {terapeuta.user.name}
@@ -179,17 +171,18 @@ defmodule BeamWeb.DashboardLive do
         </.table>
       </div>
     </div>
-     <.help_button open={@open_help}>
-        <:help>
-          <p><strong>1.</strong> Podemos ver neste menu os todos os profissionais e pacientes da aplicação.</p>
-        </:help>
-        <:help>
-          <p><strong>2.</strong> Ao carregar em <em>Novo Paciente</em> podes adicionar um novo paciente à aplicação.</p>
-        </:help>
-        <:help>
-          <p><strong>3.</strong> Ao carregar no nome de um paciente és levado para o seu perfil, onde podes consultar os seus dados e adicionar apontamentos.</p>
-        </:help>
-      </.help_button>
+
+    <.help_button open={@open_help}>
+      <:help>
+        <p><strong>1.</strong> Neste menu podes ver todos os profissionais e os teus pacientes associados.</p>
+      </:help>
+      <:help>
+        <p><strong>2.</strong> Ao carregar em <em>Novo Paciente</em> podes adicionar um novo paciente à aplicação.</p>
+      </:help>
+      <:help>
+        <p><strong>3.</strong> Ao carregar no nome de um paciente és levado para o seu perfil, onde podes consultar os seus dados e adicionar apontamentos.</p>
+      </:help>
+    </.help_button>
     """
   end
 end
